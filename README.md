@@ -163,16 +163,6 @@ Contributions are welcome! Please:
 4. Test thoroughly
 5. Submit a pull request
 
-## Changelog
-
-### Version 1.0.0
-- Initial release
-- Core monitoring functionality
-- Email notifications
-- WooCommerce settings integration
-- WP-CLI commands
-- Site Health integration
-
 ---
 
-**KISS Plugins** - Keep It Simple, Stupid
+**KISS Plugins** - Keep It Simple (Stupid) :-)

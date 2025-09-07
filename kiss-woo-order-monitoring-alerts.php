@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: WooCommerce Order Monitor
- * Plugin URI: https://example.com/woo-order-monitor
+ * Plugin Name: KISS WooCommerce Order Monitor
+ * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
  * Version: 1.0.0
- * Author: Your Name
+ * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
  * Requires PHP: 7.4

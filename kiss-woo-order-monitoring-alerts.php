@@ -61,21 +61,24 @@ class WooCommerce_Order_Monitor {
     private function init_hooks() {
         // Check dependencies
         add_action('admin_init', [$this, 'check_dependencies']);
-        
+
         // Setup plugin
         add_action('init', [$this, 'init']);
-        
+
         // Admin hooks
         add_filter('woocommerce_settings_tabs_array', [$this, 'add_settings_tab'], 50);
         add_action('woocommerce_settings_tabs_order_monitor', [$this, 'settings_tab']);
         add_action('woocommerce_update_options_order_monitor', [$this, 'update_settings']);
-        
+
+        // Plugin action links (Settings link on plugins page)
+        add_filter('plugin_action_links_' . WOOM_PLUGIN_BASENAME, [$this, 'add_plugin_action_links']);
+
         // AJAX handlers
         add_action('wp_ajax_woom_test_notification', [$this, 'handle_test_notification']);
-        
+
         // Cron hooks
         add_action('woom_check_orders', [$this, 'check_order_threshold']);
-        
+
         // Activation/Deactivation
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
@@ -110,9 +113,9 @@ class WooCommerce_Order_Monitor {
      */
     private function load_settings() {
         $this->settings = [
-            'enabled' => get_option('woom_enabled', 'no'),
+            'enabled' => get_option('woom_enabled', 'yes'), // Default to enabled
             'peak_start' => get_option('woom_peak_start', '09:00'),
-            'peak_end' => get_option('woom_peak_end', '21:00'),
+            'peak_end' => get_option('woom_peak_end', '18:00'), // Default to 6 PM
             'threshold_peak' => intval(get_option('woom_threshold_peak', 10)),
             'threshold_offpeak' => intval(get_option('woom_threshold_offpeak', 2)),
             'notification_emails' => get_option('woom_notification_emails', get_option('admin_email')),
@@ -140,9 +143,9 @@ class WooCommerce_Order_Monitor {
         add_filter('cron_schedules', [$this, 'add_cron_interval']);
         
         // Set default options
-        add_option('woom_enabled', 'no');
+        add_option('woom_enabled', 'yes'); // Default to enabled since user intent is clear
         add_option('woom_peak_start', '09:00');
-        add_option('woom_peak_end', '21:00');
+        add_option('woom_peak_end', '18:00'); // End peak hours at 6 PM
         add_option('woom_threshold_peak', 10);
         add_option('woom_threshold_offpeak', 2);
         add_option('woom_notification_emails', get_option('admin_email'));
@@ -446,6 +449,25 @@ class WooCommerce_Order_Monitor {
         $settings_tabs['order_monitor'] = __('Order Monitor', 'woo-order-monitor');
         return $settings_tabs;
     }
+
+    /**
+     * Add plugin action links (Settings link on plugins page)
+     */
+    public function add_plugin_action_links($links) {
+        // Only add settings link if WooCommerce is active
+        if (class_exists('WooCommerce')) {
+            $settings_link = sprintf(
+                '<a href="%s">%s</a>',
+                admin_url('admin.php?page=wc-settings&tab=order_monitor'),
+                __('Settings', 'woo-order-monitor')
+            );
+
+            // Add settings link at the beginning of the array
+            array_unshift($links, $settings_link);
+        }
+
+        return $links;
+    }
     
     /**
      * Settings tab content
@@ -499,8 +521,28 @@ class WooCommerce_Order_Monitor {
     private function render_custom_fields() {
         $last_check = get_option('woom_last_check', 0);
         $last_alert = get_option('woom_last_alert', 0);
+
+        // Get timezone information
+        $wp_timezone = function_exists('wp_timezone_string') ? wp_timezone_string() : get_option('timezone_string', 'UTC');
+        $current_time = current_time('Y-m-d H:i:s');
+        $current_time_display = current_time('H:i');
         ?>
         <table class="form-table">
+            <tr valign="top">
+                <th scope="row" class="titledesc">
+                    <label><?php _e('Server Time Zone', 'woo-order-monitor'); ?></label>
+                </th>
+                <td class="forminp">
+                    <div class="woom-timezone-info" style="background: #f0f8ff; padding: 10px; border-left: 4px solid #0073aa; margin-bottom: 10px;">
+                        <p><strong><?php _e('Current Server Time:', 'woo-order-monitor'); ?></strong> <?php echo esc_html($current_time); ?></p>
+                        <p><strong><?php _e('Time Zone:', 'woo-order-monitor'); ?></strong> <?php echo esc_html($wp_timezone); ?></p>
+                        <p><strong><?php _e('Current Time (for peak hours):', 'woo-order-monitor'); ?></strong> <?php echo esc_html($current_time_display); ?></p>
+                        <p class="description">
+                            <?php _e('Peak hours are based on this server time. Make sure your WordPress timezone is set correctly in Settings → General.', 'woo-order-monitor'); ?>
+                        </p>
+                    </div>
+                </td>
+            </tr>
             <tr valign="top">
                 <th scope="row" class="titledesc">
                     <label for="woom_test_notification"><?php _e('Test Notification', 'woo-order-monitor'); ?></label>
@@ -522,11 +564,18 @@ class WooCommerce_Order_Monitor {
                         <?php echo $last_check ? date('Y-m-d H:i:s', $last_check) : __('Never', 'woo-order-monitor'); ?></p>
                         <p><strong><?php _e('Last alert:', 'woo-order-monitor'); ?></strong>
                         <?php echo $last_alert ? date('Y-m-d H:i:s', $last_alert) : __('Never', 'woo-order-monitor'); ?></p>
-                        <?php if (get_option('woom_enabled') === 'yes'): ?>
-                            <p style="color: #46b450;"><strong><?php _e('Status:', 'woo-order-monitor'); ?></strong> <?php _e('Monitoring Active', 'woo-order-monitor'); ?></p>
-                        <?php else: ?>
-                            <p style="color: #dc3232;"><strong><?php _e('Status:', 'woo-order-monitor'); ?></strong> <?php _e('Monitoring Disabled', 'woo-order-monitor'); ?></p>
-                        <?php endif; ?>
+                        <p id="woom-status-display">
+                            <strong><?php _e('Status:', 'woo-order-monitor'); ?></strong>
+                            <span id="woom-status-text" style="color: <?php echo get_option('woom_enabled') === 'yes' ? '#46b450' : '#dc3232'; ?>;">
+                                <?php echo get_option('woom_enabled') === 'yes' ? __('Monitoring Active', 'woo-order-monitor') : __('Monitoring Disabled', 'woo-order-monitor'); ?>
+                            </span>
+                        </p>
+                        <p id="woom-settings-status">
+                            <strong><?php _e('Recent Settings:', 'woo-order-monitor'); ?></strong>
+                            <span id="woom-settings-text" style="color: #46b450;">
+                                <?php _e('Saved', 'woo-order-monitor'); ?>
+                            </span>
+                        </p>
                     </div>
                 </td>
             </tr>
@@ -550,7 +599,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'checkbox',
                 'desc' => __('Enable order volume monitoring', 'woo-order-monitor'),
                 'id' => 'woom_enabled',
-                'default' => 'no'
+                'default' => 'yes'
             ],
             'peak_start' => [
                 'name' => __('Peak Hours Start', 'woo-order-monitor'),
@@ -567,13 +616,13 @@ class WooCommerce_Order_Monitor {
             'peak_end' => [
                 'name' => __('Peak Hours End', 'woo-order-monitor'),
                 'type' => 'text',
-                'desc' => __('End time for peak hours (24-hour format, e.g., 21:00)', 'woo-order-monitor'),
+                'desc' => __('End time for peak hours (24-hour format, e.g., 18:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_end',
-                'default' => '21:00',
+                'default' => '18:00',
                 'css' => 'width: 100px;',
                 'custom_attributes' => [
                     'pattern' => '[0-9]{2}:[0-9]{2}',
-                    'placeholder' => '21:00'
+                    'placeholder' => '18:00'
                 ]
             ],
             'threshold_peak' => [

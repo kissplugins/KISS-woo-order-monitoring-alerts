@@ -25,9 +25,9 @@ A lightweight WordPress plugin that monitors WooCommerce order volume and sends 
 1. Download the plugin files
 2. Upload the `KISS-woo-order-monitoring-alerts` folder to `/wp-content/plugins/`
 3. Activate the plugin through the WordPress admin
-4. Navigate to **WooCommerce → Settings → Order Monitor**
-5. Configure your monitoring thresholds and notification emails
-6. Enable monitoring
+4. Navigate to **WooCommerce → Settings → Order Monitor** (or click "Settings" on the plugins page)
+5. Review and adjust the pre-configured settings for your store
+6. Monitoring is enabled by default - you're ready to go!
 
 ## Configuration
 
@@ -39,11 +39,21 @@ A lightweight WordPress plugin that monitors WooCommerce order volume and sends 
 - **Off-Peak Threshold** - Minimum orders expected per 15 minutes during off-peak hours
 - **Notification Emails** - Comma-separated list of email addresses for alerts
 
-### Recommended Initial Settings
+### Default Settings
 
-- **Peak Hours**: 09:00 - 21:00 (adjust for your timezone)
-- **Peak Threshold**: 80% of your typical 15-minute order volume during busy hours
-- **Off-Peak Threshold**: 50% of your typical 15-minute order volume during quiet hours
+The plugin comes pre-configured with sensible defaults:
+
+- **Monitoring**: Enabled (since your intent is clear by installing the plugin)
+- **Peak Hours**: 09:00 - 18:00 (9 AM to 6 PM)
+- **Peak Threshold**: 10 orders per 15 minutes
+- **Off-Peak Threshold**: 2 orders per 15 minutes
+- **Notification Emails**: Your WordPress admin email
+
+### Recommended Adjustments
+
+- **Peak Hours**: Adjust for your actual business hours and timezone
+- **Peak Threshold**: Set to 80% of your typical 15-minute order volume during busy hours
+- **Off-Peak Threshold**: Set to 50% of your typical 15-minute order volume during quiet hours
 
 ## How It Works
 

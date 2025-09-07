@@ -179,31 +179,51 @@ class WooCommerce_Order_Monitor {
      * Check order threshold
      */
     public function check_order_threshold() {
-        // Update last check time
-        update_option('woom_last_check', current_time('timestamp'));
-        
-        // Get order count for last 15 minutes
-        $order_count = $this->get_recent_order_count();
-        
-        // Determine if we're in peak hours
-        $is_peak = $this->is_peak_hours();
-        
-        // Get appropriate threshold
-        $threshold = $is_peak ? $this->settings['threshold_peak'] : $this->settings['threshold_offpeak'];
-        
-        // Check if below threshold
-        if ($order_count < $threshold) {
-            $this->send_alert($order_count, $threshold, $is_peak);
-        }
-        
-        // Log for debugging (optional)
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log(sprintf(
-                '[WooCommerce Order Monitor] Check complete - Orders: %d, Threshold: %d, Peak: %s',
-                $order_count,
-                $threshold,
-                $is_peak ? 'Yes' : 'No'
-            ));
+        try {
+            // Update last check time
+            update_option('woom_last_check', current_time('timestamp'));
+
+            // Get order count for last 15 minutes
+            $order_count = $this->get_recent_order_count();
+
+            // If order count is null/false due to database error, skip this check
+            if ($order_count === false || $order_count === null) {
+                error_log('[WooCommerce Order Monitor] Skipping threshold check due to database error');
+                return;
+            }
+
+            // Determine if we're in peak hours
+            $is_peak = $this->is_peak_hours();
+
+            // Get appropriate threshold
+            $threshold = $is_peak ? $this->settings['threshold_peak'] : $this->settings['threshold_offpeak'];
+
+            // Validate threshold values
+            if (!is_numeric($threshold) || $threshold < 0) {
+                error_log('[WooCommerce Order Monitor] Invalid threshold value: ' . $threshold);
+                return;
+            }
+
+            // Check if below threshold
+            if ($order_count < $threshold) {
+                $alert_sent = $this->send_alert($order_count, $threshold, $is_peak);
+                if (!$alert_sent) {
+                    error_log('[WooCommerce Order Monitor] Failed to send alert notification');
+                }
+            }
+
+            // Log for debugging (optional)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[WooCommerce Order Monitor] Check complete - Orders: %d, Threshold: %d, Peak: %s',
+                    $order_count,
+                    $threshold,
+                    $is_peak ? 'Yes' : 'No'
+                ));
+            }
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in check_order_threshold: ' . $e->getMessage());
         }
     }
     
@@ -212,24 +232,36 @@ class WooCommerce_Order_Monitor {
      */
     private function get_recent_order_count() {
         global $wpdb;
-        
-        // Calculate time 15 minutes ago
-        $minutes_ago = 15;
-        $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes_ago} minutes"));
-        
-        // Query for successful orders
-        // Using direct query for performance
-        $query = $wpdb->prepare("
-            SELECT COUNT(DISTINCT p.ID) as order_count
-            FROM {$wpdb->posts} p
-            WHERE p.post_type = 'shop_order'
-            AND p.post_status IN ('wc-completed', 'wc-processing')
-            AND p.post_date >= %s
-        ", $start_time);
-        
-        $result = $wpdb->get_var($query);
-        
-        return intval($result);
+
+        try {
+            // Calculate time 15 minutes ago
+            $minutes_ago = 15;
+            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes_ago} minutes"));
+
+            // Query for successful orders
+            // Using direct query for performance
+            $query = $wpdb->prepare("
+                SELECT COUNT(DISTINCT p.ID) as order_count
+                FROM {$wpdb->posts} p
+                WHERE p.post_type = 'shop_order'
+                AND p.post_status IN ('wc-completed', 'wc-processing')
+                AND p.post_date >= %s
+            ", $start_time);
+
+            $result = $wpdb->get_var($query);
+
+            // Check for database errors
+            if ($wpdb->last_error) {
+                error_log('[WooCommerce Order Monitor] Database error in get_recent_order_count: ' . $wpdb->last_error);
+                return 0; // Return 0 to prevent false alerts due to query errors
+            }
+
+            return intval($result);
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in get_recent_order_count: ' . $e->getMessage());
+            return 0; // Return 0 to prevent false alerts due to exceptions
+        }
     }
     
     /**
@@ -254,39 +286,60 @@ class WooCommerce_Order_Monitor {
      * Send alert notification
      */
     private function send_alert($order_count, $threshold, $is_peak) {
-        // Update last alert time
-        update_option('woom_last_alert', current_time('timestamp'));
-        
-        // Prepare email data
-        $to = $this->get_notification_emails();
-        $subject = __('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor');
-        
-        // Calculate time period
-        $end_time = current_time('H:i');
-        $start_time = date('H:i', strtotime('-15 minutes'));
-        
-        // Build email body
-        $body = $this->build_alert_email_body([
-            'start_time' => $start_time,
-            'end_time' => $end_time,
-            'threshold' => $threshold,
-            'order_count' => $order_count,
-            'period_type' => $is_peak ? __('Peak Hours', 'woo-order-monitor') : __('Off-Peak Hours', 'woo-order-monitor'),
-            'admin_url' => admin_url('edit.php?post_type=shop_order')
-        ]);
-        
-        // Set HTML headers
-        $headers = ['Content-Type: text/html; charset=UTF-8'];
-        
-        // Send email
-        $sent = wp_mail($to, $subject, $body, $headers);
-        
-        // Log if sending failed
-        if (!$sent && defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[WooCommerce Order Monitor] Failed to send alert email');
+        try {
+            // Update last alert time
+            update_option('woom_last_alert', current_time('timestamp'));
+
+            // Prepare email data
+            $to = $this->get_notification_emails();
+
+            // Validate email addresses
+            if (empty($to) || !is_array($to)) {
+                error_log('[WooCommerce Order Monitor] No valid email addresses configured for alerts');
+                return false;
+            }
+
+            $subject = __('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor');
+
+            // Calculate time period
+            $end_time = current_time('H:i');
+            $start_time = date('H:i', strtotime('-15 minutes'));
+
+            // Build email body
+            $body = $this->build_alert_email_body([
+                'start_time' => $start_time,
+                'end_time' => $end_time,
+                'threshold' => $threshold,
+                'order_count' => $order_count,
+                'period_type' => $is_peak ? __('Peak Hours', 'woo-order-monitor') : __('Off-Peak Hours', 'woo-order-monitor'),
+                'admin_url' => admin_url('edit.php?post_type=shop_order')
+            ]);
+
+            // Validate email body
+            if (empty($body)) {
+                error_log('[WooCommerce Order Monitor] Failed to generate email body');
+                return false;
+            }
+
+            // Set HTML headers
+            $headers = ['Content-Type: text/html; charset=UTF-8'];
+
+            // Send email
+            $sent = wp_mail($to, $subject, $body, $headers);
+
+            // Log if sending failed
+            if (!$sent) {
+                error_log('[WooCommerce Order Monitor] Failed to send alert email to: ' . implode(', ', $to));
+            } else {
+                error_log('[WooCommerce Order Monitor] Alert email sent successfully to: ' . implode(', ', $to));
+            }
+
+            return $sent;
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in send_alert: ' . $e->getMessage());
+            return false;
         }
-        
-        return $sent;
     }
     
     /**
@@ -399,17 +452,20 @@ class WooCommerce_Order_Monitor {
      */
     public function settings_tab() {
         woocommerce_admin_fields($this->get_settings());
-        
+
+        // Render custom fields that WooCommerce doesn't support natively
+        $this->render_custom_fields();
+
         // Add custom JavaScript for test notification
         ?>
         <script type="text/javascript">
         jQuery(document).ready(function($) {
             $('#woom_test_notification').on('click', function(e) {
                 e.preventDefault();
-                
+
                 var $button = $(this);
                 $button.prop('disabled', true).text('Sending...');
-                
+
                 $.ajax({
                     url: ajaxurl,
                     type: 'POST',
@@ -436,14 +492,52 @@ class WooCommerce_Order_Monitor {
         </script>
         <?php
     }
+
+    /**
+     * Render custom fields that WooCommerce doesn't support natively
+     */
+    private function render_custom_fields() {
+        $last_check = get_option('woom_last_check', 0);
+        $last_alert = get_option('woom_last_alert', 0);
+        ?>
+        <table class="form-table">
+            <tr valign="top">
+                <th scope="row" class="titledesc">
+                    <label for="woom_test_notification"><?php _e('Test Notification', 'woo-order-monitor'); ?></label>
+                </th>
+                <td class="forminp">
+                    <button type="button" id="woom_test_notification" class="button-secondary">
+                        <?php _e('Send Test Notification', 'woo-order-monitor'); ?>
+                    </button>
+                    <p class="description"><?php _e('Send a test notification to verify email delivery', 'woo-order-monitor'); ?></p>
+                </td>
+            </tr>
+            <tr valign="top">
+                <th scope="row" class="titledesc">
+                    <label><?php _e('Monitoring Status', 'woo-order-monitor'); ?></label>
+                </th>
+                <td class="forminp">
+                    <div class="woom-status-info">
+                        <p><strong><?php _e('Last check:', 'woo-order-monitor'); ?></strong>
+                        <?php echo $last_check ? date('Y-m-d H:i:s', $last_check) : __('Never', 'woo-order-monitor'); ?></p>
+                        <p><strong><?php _e('Last alert:', 'woo-order-monitor'); ?></strong>
+                        <?php echo $last_alert ? date('Y-m-d H:i:s', $last_alert) : __('Never', 'woo-order-monitor'); ?></p>
+                        <?php if (get_option('woom_enabled') === 'yes'): ?>
+                            <p style="color: #46b450;"><strong><?php _e('Status:', 'woo-order-monitor'); ?></strong> <?php _e('Monitoring Active', 'woo-order-monitor'); ?></p>
+                        <?php else: ?>
+                            <p style="color: #dc3232;"><strong><?php _e('Status:', 'woo-order-monitor'); ?></strong> <?php _e('Monitoring Disabled', 'woo-order-monitor'); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <?php
+    }
     
     /**
      * Get settings fields
      */
     private function get_settings() {
-        $last_check = get_option('woom_last_check', 0);
-        $last_alert = get_option('woom_last_alert', 0);
-        
         $settings = [
             'section_title' => [
                 'name' => __('WooCommerce Order Monitor Settings', 'woo-order-monitor'),
@@ -460,22 +554,26 @@ class WooCommerce_Order_Monitor {
             ],
             'peak_start' => [
                 'name' => __('Peak Hours Start', 'woo-order-monitor'),
-                'type' => 'time',
-                'desc' => __('Start time for peak hours (24-hour format)', 'woo-order-monitor'),
+                'type' => 'text',
+                'desc' => __('Start time for peak hours (24-hour format, e.g., 09:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_start',
                 'default' => '09:00',
+                'css' => 'width: 100px;',
                 'custom_attributes' => [
-                    'pattern' => '[0-9]{2}:[0-9]{2}'
+                    'pattern' => '[0-9]{2}:[0-9]{2}',
+                    'placeholder' => '09:00'
                 ]
             ],
             'peak_end' => [
                 'name' => __('Peak Hours End', 'woo-order-monitor'),
-                'type' => 'time',
-                'desc' => __('End time for peak hours (24-hour format)', 'woo-order-monitor'),
+                'type' => 'text',
+                'desc' => __('End time for peak hours (24-hour format, e.g., 21:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_end',
                 'default' => '21:00',
+                'css' => 'width: 100px;',
                 'custom_attributes' => [
-                    'pattern' => '[0-9]{2}:[0-9]{2}'
+                    'pattern' => '[0-9]{2}:[0-9]{2}',
+                    'placeholder' => '21:00'
                 ]
             ],
             'threshold_peak' => [
@@ -508,25 +606,7 @@ class WooCommerce_Order_Monitor {
                 'default' => get_option('admin_email'),
                 'css' => 'width: 400px; height: 75px;'
             ],
-            'test_notification' => [
-                'name' => __('Test Notification', 'woo-order-monitor'),
-                'type' => 'button',
-                'desc' => __('Send a test notification to verify email delivery', 'woo-order-monitor'),
-                'id' => 'woom_test_notification',
-                'custom_attributes' => [
-                    'class' => 'button-secondary'
-                ]
-            ],
-            'monitoring_status' => [
-                'name' => __('Monitoring Status', 'woo-order-monitor'),
-                'type' => 'info',
-                'desc' => sprintf(
-                    __('Last check: %s<br>Last alert: %s', 'woo-order-monitor'),
-                    $last_check ? date('Y-m-d H:i:s', $last_check) : __('Never', 'woo-order-monitor'),
-                    $last_alert ? date('Y-m-d H:i:s', $last_alert) : __('Never', 'woo-order-monitor')
-                ),
-                'id' => 'woom_monitoring_status'
-            ],
+
             'section_end' => [
                 'type' => 'sectionend',
                 'id' => 'woom_section_end'
@@ -540,41 +620,126 @@ class WooCommerce_Order_Monitor {
      * Update settings
      */
     public function update_settings() {
-        woocommerce_update_options($this->get_settings());
-        
-        // Reload settings and update cron
-        $this->load_settings();
-        $this->ensure_cron_scheduled();
+        try {
+            // Validate and sanitize settings before saving
+            $this->validate_and_sanitize_settings();
+
+            woocommerce_update_options($this->get_settings());
+
+            // Reload settings and update cron
+            $this->load_settings();
+            $this->ensure_cron_scheduled();
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in update_settings: ' . $e->getMessage());
+            // Add admin notice for user feedback
+            add_action('admin_notices', function() use ($e) {
+                ?>
+                <div class="notice notice-error">
+                    <p><?php printf(__('Error saving WooCommerce Order Monitor settings: %s', 'woo-order-monitor'), esc_html($e->getMessage())); ?></p>
+                </div>
+                <?php
+            });
+        }
+    }
+
+    /**
+     * Validate and sanitize settings input
+     */
+    private function validate_and_sanitize_settings() {
+        // Validate time format for peak hours
+        if (isset($_POST['woom_peak_start'])) {
+            $peak_start = sanitize_text_field($_POST['woom_peak_start']);
+            if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $peak_start)) {
+                throw new Exception('Invalid peak start time format. Use HH:MM format (e.g., 09:00)');
+            }
+        }
+
+        if (isset($_POST['woom_peak_end'])) {
+            $peak_end = sanitize_text_field($_POST['woom_peak_end']);
+            if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $peak_end)) {
+                throw new Exception('Invalid peak end time format. Use HH:MM format (e.g., 21:00)');
+            }
+        }
+
+        // Validate threshold values
+        if (isset($_POST['woom_threshold_peak'])) {
+            $threshold_peak = intval($_POST['woom_threshold_peak']);
+            if ($threshold_peak < 0 || $threshold_peak > 1000) {
+                throw new Exception('Peak threshold must be between 0 and 1000');
+            }
+        }
+
+        if (isset($_POST['woom_threshold_offpeak'])) {
+            $threshold_offpeak = intval($_POST['woom_threshold_offpeak']);
+            if ($threshold_offpeak < 0 || $threshold_offpeak > 1000) {
+                throw new Exception('Off-peak threshold must be between 0 and 1000');
+            }
+        }
+
+        // Validate email addresses
+        if (isset($_POST['woom_notification_emails'])) {
+            $emails = sanitize_textarea_field($_POST['woom_notification_emails']);
+            $email_array = array_map('trim', explode(',', $emails));
+            foreach ($email_array as $email) {
+                if (!empty($email) && !is_email($email)) {
+                    throw new Exception('Invalid email address: ' . $email);
+                }
+            }
+        }
     }
     
     /**
      * Handle test notification AJAX request
      */
     public function handle_test_notification() {
-        // Verify nonce
-        if (!check_ajax_referer('woom_test_notification', 'security', false)) {
-            wp_send_json_error('Invalid security token');
-        }
-        
-        // Check permissions
-        if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error('Insufficient permissions');
-        }
-        
-        // Send test email
-        $to = $this->get_notification_emails();
-        $subject = __('[Test] WooCommerce Order Monitor - Test Notification', 'woo-order-monitor');
-        
-        $body = $this->build_test_email_body();
-        
-        $headers = ['Content-Type: text/html; charset=UTF-8'];
-        
-        $sent = wp_mail($to, $subject, $body, $headers);
-        
-        if ($sent) {
-            wp_send_json_success('Test notification sent to: ' . implode(', ', $to));
-        } else {
-            wp_send_json_error('Failed to send test notification');
+        try {
+            // Verify nonce
+            if (!check_ajax_referer('woom_test_notification', 'security', false)) {
+                wp_send_json_error('Invalid security token');
+                return;
+            }
+
+            // Check permissions
+            if (!current_user_can('manage_woocommerce')) {
+                wp_send_json_error('Insufficient permissions');
+                return;
+            }
+
+            // Get notification emails
+            $to = $this->get_notification_emails();
+
+            // Validate email addresses
+            if (empty($to) || !is_array($to)) {
+                wp_send_json_error('No valid email addresses configured. Please check your notification email settings.');
+                return;
+            }
+
+            $subject = __('[Test] WooCommerce Order Monitor - Test Notification', 'woo-order-monitor');
+
+            // Build test email body
+            $body = $this->build_test_email_body();
+
+            // Validate email body
+            if (empty($body)) {
+                wp_send_json_error('Failed to generate test email content');
+                return;
+            }
+
+            $headers = ['Content-Type: text/html; charset=UTF-8'];
+
+            // Send test email
+            $sent = wp_mail($to, $subject, $body, $headers);
+
+            if ($sent) {
+                wp_send_json_success('Test notification sent successfully to: ' . implode(', ', $to));
+            } else {
+                wp_send_json_error('Failed to send test notification. Please check your email configuration.');
+            }
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in handle_test_notification: ' . $e->getMessage());
+            wp_send_json_error('An unexpected error occurred: ' . $e->getMessage());
         }
     }
     
@@ -733,43 +898,53 @@ class WOOM_Optimized_Query {
     public static function get_cached_order_count($minutes = 15) {
         $cache_key = 'woom_order_count_' . $minutes;
         $cached = wp_cache_get($cache_key, 'woo-order-monitor');
-        
+
         if (false !== $cached) {
             return $cached;
         }
-        
+
         global $wpdb;
-        
-        // Use indexed columns for better performance
-        $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-        
-        // Query using order stats table if available (HPOS)
-        if (class_exists('Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController')) {
-            $query = $wpdb->prepare("
-                SELECT COUNT(*) as order_count
-                FROM {$wpdb->prefix}wc_orders
-                WHERE status IN ('wc-completed', 'wc-processing')
-                AND date_created_gmt >= %s
-            ", $start_time);
-        } else {
-            // Fallback to posts table
-            $query = $wpdb->prepare("
-                SELECT COUNT(*) as order_count
-                FROM {$wpdb->posts} p
-                INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-                WHERE p.post_type = 'shop_order'
-                AND p.post_status IN ('wc-completed', 'wc-processing')
-                AND p.post_date_gmt >= %s
-                GROUP BY p.ID
-            ", $start_time);
+
+        try {
+            // Use indexed columns for better performance
+            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+
+            // Query using order stats table if available (HPOS)
+            if (class_exists('Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController')) {
+                $query = $wpdb->prepare("
+                    SELECT COUNT(*) as order_count
+                    FROM {$wpdb->prefix}wc_orders
+                    WHERE status IN ('wc-completed', 'wc-processing')
+                    AND date_created_gmt >= %s
+                ", $start_time);
+            } else {
+                // Fallback to posts table (simplified query to avoid JOIN issues)
+                $query = $wpdb->prepare("
+                    SELECT COUNT(*) as order_count
+                    FROM {$wpdb->posts} p
+                    WHERE p.post_type = 'shop_order'
+                    AND p.post_status IN ('wc-completed', 'wc-processing')
+                    AND p.post_date_gmt >= %s
+                ", $start_time);
+            }
+
+            $count = intval($wpdb->get_var($query));
+
+            // Check for database errors
+            if ($wpdb->last_error) {
+                error_log('[WooCommerce Order Monitor] Database error in get_cached_order_count: ' . $wpdb->last_error);
+                return 0; // Return 0 to prevent false alerts
+            }
+
+            // Cache for 1 minute
+            wp_cache_set($cache_key, $count, 'woo-order-monitor', 60);
+
+            return $count;
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in get_cached_order_count: ' . $e->getMessage());
+            return 0; // Return 0 to prevent false alerts
         }
-        
-        $count = intval($wpdb->get_var($query));
-        
-        // Cache for 1 minute
-        wp_cache_set($cache_key, $count, 'woo-order-monitor', 60);
-        
-        return $count;
     }
     
     /**
@@ -777,22 +952,51 @@ class WOOM_Optimized_Query {
      */
     public static function get_order_stats($minutes = 15) {
         global $wpdb;
-        
-        $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-        
-        $query = $wpdb->prepare("
-            SELECT 
-                COUNT(*) as total_orders,
-                SUM(CASE WHEN post_status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
-                SUM(CASE WHEN post_status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
-                MAX(post_date) as last_order_time
-            FROM {$wpdb->posts}
-            WHERE post_type = 'shop_order'
-            AND post_status IN ('wc-completed', 'wc-processing')
-            AND post_date >= %s
-        ", $start_time);
-        
-        return $wpdb->get_row($query, ARRAY_A);
+
+        try {
+            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+
+            $query = $wpdb->prepare("
+                SELECT
+                    COUNT(*) as total_orders,
+                    SUM(CASE WHEN post_status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
+                    SUM(CASE WHEN post_status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
+                    MAX(post_date) as last_order_time
+                FROM {$wpdb->posts}
+                WHERE post_type = 'shop_order'
+                AND post_status IN ('wc-completed', 'wc-processing')
+                AND post_date >= %s
+            ", $start_time);
+
+            $result = $wpdb->get_row($query, ARRAY_A);
+
+            // Check for database errors
+            if ($wpdb->last_error) {
+                error_log('[WooCommerce Order Monitor] Database error in get_order_stats: ' . $wpdb->last_error);
+                return [
+                    'total_orders' => 0,
+                    'completed_orders' => 0,
+                    'processing_orders' => 0,
+                    'last_order_time' => null
+                ];
+            }
+
+            return $result ? $result : [
+                'total_orders' => 0,
+                'completed_orders' => 0,
+                'processing_orders' => 0,
+                'last_order_time' => null
+            ];
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in get_order_stats: ' . $e->getMessage());
+            return [
+                'total_orders' => 0,
+                'completed_orders' => 0,
+                'processing_orders' => 0,
+                'last_order_time' => null
+            ];
+        }
     }
 }
 

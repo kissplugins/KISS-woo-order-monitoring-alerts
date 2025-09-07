@@ -1,4 +1,4 @@
-Great question! Let me analyze the benefits of converting to PSR-4 autoloading for this specific plugin:
+# PSR-4 Autoloading
 
 ## **Short Answer: Not Yet - Wait Until Phase 2**
 
@@ -107,3 +107,218 @@ woocommerce-order-monitor/
 The current monolithic approach is actually a **strength** for a critical monitoring tool. It's the same reason why monitoring services like Nagios plugins are often single scripts - reliability over elegance for infrastructure monitoring.
 
 Would you like me to create a migration plan for when you do eventually want to move to PSR-4, or should we focus on getting the MVP deployed first?
+
+===
+
+# FSM in v2.0
+
+An FSM would be overkill for the MVP, but becomes valuable when you add alert fatigue prevention, escalation, and recovery detection.
+
+### **Current (Implicit) State Machine:**
+
+Your plugin already has an implicit state machine, just not formalized:
+
+```
+MONITORING_ACTIVE ←→ MONITORING_DISABLED
+       ↓
+   CHECK_ORDERS
+       ↓
+   [threshold_met] → NORMAL
+       ↓
+   [threshold_breach] → ALERT_SENT
+```
+
+### **Where FSM Would Add Value (Version 2.0+):**
+
+## **1. Alert State Management**
+
+```
+States:
+- NORMAL (everything fine)
+- WARNING (approaching threshold)
+- CRITICAL (below threshold)
+- ALERTING (sending notifications)
+- COOLDOWN (preventing alert spam)
+- ESCALATED (persistent issue)
+- RECOVERING (orders increasing)
+- RECOVERED (back to normal)
+
+Transitions:
+- NORMAL → WARNING (orders < threshold * 1.2)
+- WARNING → CRITICAL (orders < threshold)
+- CRITICAL → ALERTING (trigger notification)
+- ALERTING → COOLDOWN (alert sent)
+- COOLDOWN → ESCALATED (still critical after X checks)
+- CRITICAL → RECOVERING (orders increasing but still below)
+- RECOVERING → RECOVERED (orders > threshold)
+```
+
+## **2. Benefits of FSM Implementation:**
+
+### **Prevents Alert Fatigue:**
+```php
+class AlertStateMachine {
+    private $states = [
+        'NORMAL' => [
+            'can_alert' => false,
+            'check_interval' => 900, // 15 min
+        ],
+        'CRITICAL' => [
+            'can_alert' => true,
+            'check_interval' => 300, // 5 min when critical
+        ],
+        'COOLDOWN' => [
+            'can_alert' => false,
+            'check_interval' => 300,
+            'duration' => 3600, // 1 hour cooldown
+        ],
+        'ESCALATED' => [
+            'can_alert' => true,
+            'check_interval' => 300,
+            'notify_admin' => true, // Different recipients
+        ]
+    ];
+}
+```
+
+### **Smart Recovery Detection:**
+```php
+// Instead of binary alert/no-alert:
+if ($state === 'CRITICAL' && $orders > $last_orders) {
+    $fsm->transitionTo('RECOVERING');
+    // Send different message: "Orders recovering but still below threshold"
+}
+```
+
+### **Progressive Escalation:**
+```php
+// After 3 consecutive critical states:
+if ($consecutive_critical >= 3) {
+    $fsm->transitionTo('ESCALATED');
+    // Now alerts go to senior admins, maybe triggers automatic mitigations
+}
+```
+
+## **3. Real-World Scenarios Where FSM Helps:**
+
+### **Scenario A: Temporary Blip**
+```
+Normal → Critical (1 bad check) → Normal
+Result: No alert sent (requires 2 consecutive critical states)
+```
+
+### **Scenario B: Real Outage**
+```
+Normal → Critical → Critical → ALERTING → COOLDOWN → Still Critical → ESCALATED
+Result: Initial alert, then escalation to senior staff
+```
+
+### **Scenario C: Flapping**
+```
+Critical → Normal → Critical → Normal (rapid changes)
+FSM detects pattern → UNSTABLE state → Different alert about instability
+```
+
+## **4. Implementation Example for Version 2.0:**
+
+```php
+class OrderMonitorFSM {
+    private string $current_state;
+    private array $state_history = [];
+    private int $state_entered_at;
+    
+    const TRANSITIONS = [
+        'NORMAL' => [
+            'CHECK_THRESHOLD' => ['WARNING', 'CRITICAL', 'NORMAL'],
+        ],
+        'WARNING' => [
+            'CHECK_THRESHOLD' => ['NORMAL', 'CRITICAL', 'WARNING'],
+        ],
+        'CRITICAL' => [
+            'SEND_ALERT' => 'ALERTING',
+            'CHECK_THRESHOLD' => ['RECOVERING', 'CRITICAL'],
+        ],
+        'ALERTING' => [
+            'ALERT_SENT' => 'COOLDOWN',
+        ],
+        'COOLDOWN' => [
+            'TIMEOUT' => 'CRITICAL',
+            'RECOVERED' => 'NORMAL',
+        ],
+    ];
+    
+    public function handleOrderCheck($order_count, $threshold) {
+        $event = $this->determineEvent($order_count, $threshold);
+        $new_state = $this->transition($event);
+        
+        return $this->getStateActions($new_state);
+    }
+    
+    private function determineEvent($count, $threshold) {
+        $ratio = $count / $threshold;
+        
+        if ($ratio >= 1.0) return 'THRESHOLD_MET';
+        if ($ratio >= 0.8) return 'THRESHOLD_WARNING';
+        if ($ratio < 0.5) return 'THRESHOLD_CRITICAL';
+        
+        return 'THRESHOLD_BREACH';
+    }
+}
+```
+
+## **5. When NOT to Use FSM (Current MVP):**
+
+Your MVP shouldn't use FSM because:
+- **Single state transition**: Normal → Alert
+- **No escalation logic**
+- **No cooldown periods**
+- **No recovery tracking**
+- **Added complexity without benefit**
+
+## **6. Migration Path:**
+
+### **MVP (Current):**
+```php
+if ($orders < $threshold) {
+    send_alert();
+}
+```
+
+### **Version 1.5 (Simple States):**
+```php
+$state = get_option('woom_current_state', 'normal');
+if ($orders < $threshold && $state !== 'cooldown') {
+    send_alert();
+    update_option('woom_current_state', 'cooldown');
+    update_option('woom_cooldown_until', time() + 3600);
+}
+```
+
+### **Version 2.0 (Full FSM):**
+```php
+$fsm = new OrderMonitorFSM();
+$actions = $fsm->process([
+    'order_count' => $orders,
+    'threshold' => $threshold,
+    'history' => $recent_checks
+]);
+
+foreach ($actions as $action) {
+    $action->execute(); // Send alerts, update intervals, etc.
+}
+```
+
+## **My Recommendation:**
+
+1. **MVP**: Ship without FSM - keep it simple
+2. **Version 1.1**: Add basic cooldown state (2 states only)
+3. **Version 2.0**: Implement full FSM when adding:
+   - Alert fatigue prevention
+   - Escalation chains
+   - Recovery notifications
+   - Adaptive thresholds
+   - Multiple notification channels with different rules
+
+The FSM becomes valuable when you need to answer: *"Should I alert, who should I alert, and how urgently?"* rather than just *"Should I alert?"*
+
+Would you like me to sketch out what the FSM-based version would look like for a future iteration, or should we stick with the simple approach for MVP?

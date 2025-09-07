@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.1.0
+ * Version: 1.2.1
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WOOM_VERSION', '1.1.0');
+define('WOOM_VERSION', '1.2.1');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -69,6 +69,7 @@ class WooCommerce_Order_Monitor {
         add_filter('woocommerce_settings_tabs_array', [$this, 'add_settings_tab'], 50);
         add_action('woocommerce_settings_tabs_order_monitor', [$this, 'settings_tab']);
         add_action('woocommerce_update_options_order_monitor', [$this, 'update_settings']);
+        add_action('woocommerce_settings_order_monitor', [$this, 'render_changelog_after_form']);
 
         // Plugin action links (Settings link on plugins page)
         add_filter('plugin_action_links_' . WOOM_PLUGIN_BASENAME, [$this, 'add_plugin_action_links']);
@@ -714,14 +715,66 @@ class WooCommerce_Order_Monitor {
         </table>
         <?php
     }
-    
+
+    /**
+     * Render changelog after the settings form (called by hook)
+     */
+    public function render_changelog_after_form() {
+        // Only render on our settings tab
+        if (isset($_GET['tab']) && $_GET['tab'] === 'order_monitor') {
+            $this->render_changelog_viewer();
+        }
+    }
+
+    /**
+     * Render changelog viewer
+     */
+    private function render_changelog_viewer() {
+        ?>
+        <h2><?php _e('Changelog', 'woo-order-monitor'); ?></h2>
+        <div class="woom-changelog-container" style="margin-top: 20px;">
+            <div class="woom-changelog-viewer" style="
+                max-height: 400px;
+                overflow-y: auto;
+                border: 1px solid #ddd;
+                padding: 15px;
+                background: #f9f9f9;
+                border-radius: 4px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.6;
+            ">
+                <?php
+                $changelog_path = WOOM_PLUGIN_DIR . 'CHANGELOG.md';
+
+                // Check if KISS MDV function exists
+                if (function_exists('kiss_mdv_render_file')) {
+                    $html = kiss_mdv_render_file($changelog_path);
+                    echo $html;
+                } else {
+                    // Fallback to plain text rendering
+                    if (file_exists($changelog_path)) {
+                        $content = file_get_contents($changelog_path);
+                        echo '<pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">' . esc_html($content) . '</pre>';
+                    } else {
+                        echo '<p style="color: #dc3232;">' . __('Changelog file not found.', 'woo-order-monitor') . '</p>';
+                    }
+                }
+                ?>
+            </div>
+            <p class="description" style="margin-top: 10px;">
+                <?php _e('This shows the complete changelog for all plugin versions. Scroll to see older versions.', 'woo-order-monitor'); ?>
+            </p>
+        </div>
+        <?php
+    }
+
     /**
      * Get settings fields
      */
     private function get_settings() {
         $settings = [
             'section_title' => [
-                'name' => __('WooCommerce Order Monitor Settings', 'woo-order-monitor'),
+                'name' => sprintf(__('WooCommerce Order Monitor Settings - v%s', 'woo-order-monitor'), WOOM_VERSION),
                 'type' => 'title',
                 'desc' => __('Configure order monitoring thresholds and notifications.', 'woo-order-monitor'),
                 'id' => 'woom_section_title'
@@ -791,6 +844,20 @@ class WooCommerce_Order_Monitor {
             'section_end' => [
                 'type' => 'sectionend',
                 'id' => 'woom_section_end'
+            ],
+            'changelog_section' => [
+                'name' => __('Changelog', 'woo-order-monitor'),
+                'type' => 'title',
+                'desc' => '',
+                'id' => 'woom_changelog_section'
+            ],
+            'changelog_viewer' => [
+                'type' => 'changelog_viewer',
+                'id' => 'woom_changelog_viewer'
+            ],
+            'changelog_section_end' => [
+                'type' => 'sectionend',
+                'id' => 'woom_changelog_section_end'
             ]
         ];
         

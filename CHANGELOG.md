@@ -1,5 +1,27 @@
 ## Changelog
 
+### Version 1.2.1
+September 07, 2025
+
+**Bug Fix:**
+- **Fixed changelog positioning** - Changelog viewer now appears AFTER the "Save Changes" button instead of before it
+- **Improved hook implementation** - Uses proper WooCommerce settings hook for better integration
+
+### Version 1.2.0
+September 07, 2025
+
+**User Interface Enhancements:**
+- **Version display in page title** - Settings page now shows "WooCommerce Order Monitor Settings - v1.2.0"
+- **Integrated changelog viewer** - Added scrollable changelog display at bottom of settings page
+- **KISS MDV integration** - Supports kiss_mdv_render_file() for enhanced markdown rendering with fallback to plain text
+- **Professional styling** - Changelog viewer with 400px max height, scrollable area, and clean formatting
+
+**Technical Improvements:**
+- Automatic version number display using WOOM_VERSION constant
+- Responsive changelog container with proper styling
+- Fallback rendering for environments without KISS MDV plugin
+- Enhanced settings page layout and organization
+
 ### Version 1.1.0
 September 07, 2025
 

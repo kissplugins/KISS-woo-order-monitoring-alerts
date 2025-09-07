@@ -478,10 +478,40 @@ class WooCommerce_Order_Monitor {
         // Render custom fields that WooCommerce doesn't support natively
         $this->render_custom_fields();
 
-        // Add custom JavaScript for test notification
+        // Add custom CSS and JavaScript for test notification and real-time status updates
         ?>
+        <style type="text/css">
+        .woom-status-info p {
+            margin: 8px 0;
+        }
+        #woom-status-text, #woom-settings-text {
+            font-weight: bold;
+            transition: color 0.3s ease;
+        }
+        .woom-status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .woom-status-active {
+            background-color: #46b450;
+        }
+        .woom-status-inactive {
+            background-color: #dc3232;
+        }
+        .woom-settings-saved {
+            background-color: #46b450;
+        }
+        .woom-settings-unsaved {
+            background-color: #dc3232;
+        }
+        </style>
         <script type="text/javascript">
         jQuery(document).ready(function($) {
+            // Test notification functionality
             $('#woom_test_notification').on('click', function(e) {
                 e.preventDefault();
 
@@ -510,6 +540,106 @@ class WooCommerce_Order_Monitor {
                     }
                 });
             });
+
+            // Real-time status updates
+            var originalValues = {};
+            var $statusText = $('#woom-status-text');
+            var $statusIndicator = $('#woom-status-indicator');
+            var $settingsText = $('#woom-settings-text');
+            var $settingsIndicator = $('#woom-settings-indicator');
+            var $enabledCheckbox = $('#woom_enabled');
+
+            // Store original values for change detection
+            $('input, select, textarea').each(function() {
+                var $field = $(this);
+                var fieldId = $field.attr('id');
+                if (fieldId && fieldId.indexOf('woom_') === 0) {
+                    if ($field.attr('type') === 'checkbox') {
+                        originalValues[fieldId] = $field.is(':checked');
+                    } else {
+                        originalValues[fieldId] = $field.val();
+                    }
+                }
+            });
+
+            // Function to update monitoring status based on checkbox
+            function updateMonitoringStatus() {
+                var isEnabled = $enabledCheckbox.is(':checked');
+                if (isEnabled) {
+                    $statusText.text('<?php echo esc_js(__('Monitoring Active', 'woo-order-monitor')); ?>').css('color', '#46b450');
+                    $statusIndicator.removeClass('woom-status-inactive').addClass('woom-status-active');
+                } else {
+                    $statusText.text('<?php echo esc_js(__('Monitoring Disabled', 'woo-order-monitor')); ?>').css('color', '#dc3232');
+                    $statusIndicator.removeClass('woom-status-active').addClass('woom-status-inactive');
+                }
+            }
+
+            // Function to check if settings have changed
+            function checkSettingsChanged() {
+                var hasChanges = false;
+
+                $('input, select, textarea').each(function() {
+                    var $field = $(this);
+                    var fieldId = $field.attr('id');
+                    if (fieldId && fieldId.indexOf('woom_') === 0) {
+                        var currentValue;
+                        if ($field.attr('type') === 'checkbox') {
+                            currentValue = $field.is(':checked');
+                        } else {
+                            currentValue = $field.val();
+                        }
+
+                        if (originalValues[fieldId] !== currentValue) {
+                            hasChanges = true;
+                            return false; // Break out of each loop
+                        }
+                    }
+                });
+
+                if (hasChanges) {
+                    $settingsText.text('<?php echo esc_js(__('Not Saved', 'woo-order-monitor')); ?>').css('color', '#dc3232');
+                    $settingsIndicator.removeClass('woom-settings-saved').addClass('woom-settings-unsaved');
+                } else {
+                    $settingsText.text('<?php echo esc_js(__('Saved', 'woo-order-monitor')); ?>').css('color', '#46b450');
+                    $settingsIndicator.removeClass('woom-settings-unsaved').addClass('woom-settings-saved');
+                }
+            }
+
+            // Monitor checkbox changes for real-time status update
+            $enabledCheckbox.on('change', function() {
+                updateMonitoringStatus();
+                checkSettingsChanged();
+            });
+
+            // Monitor all form field changes for settings status
+            $('input, select, textarea').on('change keyup', function() {
+                var fieldId = $(this).attr('id');
+                if (fieldId && fieldId.indexOf('woom_') === 0) {
+                    checkSettingsChanged();
+                }
+            });
+
+            // Reset change tracking when form is submitted
+            $('form').on('submit', function() {
+                // Small delay to allow form submission, then reset tracking
+                setTimeout(function() {
+                    $('input, select, textarea').each(function() {
+                        var $field = $(this);
+                        var fieldId = $field.attr('id');
+                        if (fieldId && fieldId.indexOf('woom_') === 0) {
+                            if ($field.attr('type') === 'checkbox') {
+                                originalValues[fieldId] = $field.is(':checked');
+                            } else {
+                                originalValues[fieldId] = $field.val();
+                            }
+                        }
+                    });
+                    checkSettingsChanged();
+                }, 100);
+            });
+
+            // Initial status update
+            updateMonitoringStatus();
         });
         </script>
         <?php
@@ -566,12 +696,14 @@ class WooCommerce_Order_Monitor {
                         <?php echo $last_alert ? date('Y-m-d H:i:s', $last_alert) : __('Never', 'woo-order-monitor'); ?></p>
                         <p id="woom-status-display">
                             <strong><?php _e('Status:', 'woo-order-monitor'); ?></strong>
+                            <span class="woom-status-indicator <?php echo get_option('woom_enabled') === 'yes' ? 'woom-status-active' : 'woom-status-inactive'; ?>" id="woom-status-indicator"></span>
                             <span id="woom-status-text" style="color: <?php echo get_option('woom_enabled') === 'yes' ? '#46b450' : '#dc3232'; ?>;">
                                 <?php echo get_option('woom_enabled') === 'yes' ? __('Monitoring Active', 'woo-order-monitor') : __('Monitoring Disabled', 'woo-order-monitor'); ?>
                             </span>
                         </p>
                         <p id="woom-settings-status">
                             <strong><?php _e('Recent Settings:', 'woo-order-monitor'); ?></strong>
+                            <span class="woom-status-indicator woom-settings-saved" id="woom-settings-indicator"></span>
                             <span id="woom-settings-text" style="color: #46b450;">
                                 <?php _e('Saved', 'woo-order-monitor'); ?>
                             </span>

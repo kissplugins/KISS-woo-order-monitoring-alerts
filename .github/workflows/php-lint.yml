@@ -85,34 +85,22 @@ jobs:
       with:
         php-version: '8.2'
         extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, mysql
-        tools: phpcs, phpmd, phpstan
         coverage: none
     
-    - name: Install PHP CodeSniffer and WordPress Standards
+    - name: Install Dependencies
       run: |
-        echo "Installing PHP CodeSniffer..."
-        composer global require "squizlabs/php_codesniffer=*"
-        composer global require "wp-coding-standards/wpcs=*"
-        composer global require "phpcompatibility/php-compatibility=*"
-
-        # Add to PATH
-        echo "$HOME/.composer/vendor/bin" >> $GITHUB_PATH
-
-        # Configure PHPCS
-        ~/.composer/vendor/bin/phpcs --config-set installed_paths ~/.composer/vendor/wp-coding-standards/wpcs,~/.composer/vendor/phpcompatibility/php-compatibility
+        echo "Installing Composer dependencies..."
+        composer install --no-progress --no-suggest --prefer-dist
 
     - name: WordPress Coding Standards Check
       run: |
         echo "Running WordPress Coding Standards check..."
-        ~/.composer/vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/,node_modules/,.git/ . || echo "PHPCS completed with warnings"
+        composer run-script phpcs || echo "PHPCS completed with warnings"
     
-    - name: Install and Run PHP Mess Detector
+    - name: PHP Mess Detector Check
       run: |
-        echo "Installing PHP Mess Detector..."
-        composer global require "phpmd/phpmd=*"
-
-        echo "Running PHP Mess Detector..."
-        ~/.composer/vendor/bin/phpmd . text cleancode,codesize,controversial,design,naming,unusedcode --exclude vendor/,node_modules/,.git/ || echo "PHPMD completed with warnings"
+        echo "Running PHP Mess Detector check..."
+        composer run-script phpmd || echo "PHPMD completed with warnings"
     
     - name: Security Check
       run: |

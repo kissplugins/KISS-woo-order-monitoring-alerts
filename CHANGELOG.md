@@ -1,5 +1,50 @@
 ## Changelog
 
+### Version 1.5.2
+September 08, 2025
+
+**🛡️ PRODUCTION SAFETY ENHANCEMENT: Comprehensive Alert Throttling & Performance Optimization**
+
+**🔧 Production-Ready Features:**
+- **Alert Throttling System** - Comprehensive throttling to prevent email flooding during production issues
+  - Configurable cooldown periods between alerts (2 hours default)
+  - Maximum daily alert limits (6 alerts/day default)  
+  - Separate tracking for peak and off-peak alert types
+  - Escalation alerts when maximum limits reached
+- **Database Performance Optimization** - Enhanced query performance with intelligent caching
+  - Object caching for order count queries with 60-second TTL
+  - HPOS (High-Performance Order Storage) support for WooCommerce 8.0+
+  - Query-level caching to prevent redundant database hits
+- **Enhanced Email System** - Professional alert templates with throttling information
+  - Rich HTML templates with alert type identification
+  - Throttling status display and next alert availability
+  - Escalation notifications for maximum alert limits
+- **Manual Check Functionality** - Real-time order monitoring with AJAX interface
+  - Instant order count verification without waiting for cron
+  - Real-time threshold testing and validation
+  - Production-safe manual testing capabilities
+
+**🎯 Bloomz Production Optimization:**
+- **Conservative Defaults** - Production-safe configuration for high-volume stores
+  - Peak hours: 10:00 AM - 8:00 PM (business hours)
+  - Peak threshold: 3 orders per 15 minutes
+  - Off-peak threshold: 1 order per 15 minutes
+  - Alert cooldown: 2 hours between similar alerts
+- **Enhanced Error Handling** - Comprehensive error handling and graceful degradation
+  - Database error recovery with fallback mechanisms
+  - Graceful handling of email delivery failures
+  - Detailed error logging for production debugging
+- **Resource Management** - Optimized for high-traffic production environments
+  - Minimal database impact with smart caching
+  - Efficient query patterns for large order volumes
+  - Memory-efficient processing for continuous monitoring
+
+**🔧 Technical Improvements:**
+- **PSR-4 Compatibility** - All production safety features integrated with PSR-4 architecture
+- **WordPress Standards** - Full compliance with WordPress coding and security standards
+- **Backward Compatibility** - 100% compatible with existing plugin installations
+- **Performance Monitoring** - Built-in performance metrics and monitoring capabilities
+
 ### Version 1.5.1
 December 19, 2024
 

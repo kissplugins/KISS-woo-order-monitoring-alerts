@@ -17,6 +17,8 @@ For the MVP of this monitoring plugin, PSR-4 autoloading would actually be **pre
 ✅ **Easier testing** - Better isolation for unit tests
 ✅ **Team scalability** - Easier for multiple developers
 
+See newly added PROJECT-PSR4.md for more details and ongoing status.
+
 ### **Why NOT for MVP:**
 
 1. **Performance Overhead**

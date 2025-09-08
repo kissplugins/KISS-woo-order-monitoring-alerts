@@ -23,6 +23,18 @@ define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
+// Try to load PSR-4 bootstrap if available
+$bootstrap_file = WOOM_PLUGIN_DIR . 'bootstrap.php';
+if (file_exists($bootstrap_file)) {
+    require_once $bootstrap_file;
+
+    // If PSR-4 structure is available and enabled, let bootstrap handle initialization
+    if (function_exists('woom_should_use_psr4') && woom_should_use_psr4()) {
+        // PSR-4 bootstrap will handle plugin initialization
+        return;
+    }
+}
+
 /**
  * Main plugin class
  */

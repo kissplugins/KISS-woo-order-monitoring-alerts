@@ -259,9 +259,20 @@ class OrderMonitor {
     
     /**
      * Build alert email body
-     * 
-     * @param array $data Email data
-     * @return string HTML email body
+     *
+     * Generates a professional HTML email template for order threshold alerts
+     * with severity-based styling and comprehensive system information.
+     *
+     * @param array $data Email data containing:
+     *                    - start_time: Alert period start time (H:i format)
+     *                    - end_time: Alert period end time (H:i format)
+     *                    - threshold: Expected order threshold
+     *                    - order_count: Actual order count
+     *                    - period_type: 'peak' or 'off-peak'
+     *                    - severity: Alert severity level
+     *                    - threshold_percentage: Percentage of threshold achieved
+     *                    - admin_url: WordPress admin URL for order management
+     * @return string Fully formatted HTML email body
      */
     private function buildAlertEmailBody(array $data): string {
         $severity_colors = [

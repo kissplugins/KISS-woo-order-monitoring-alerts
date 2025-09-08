@@ -45,11 +45,12 @@ class Installer {
     
     /**
      * Plugin activation
-     * 
+     *
      * Sets up default options, schedules cron jobs, and performs
      * any necessary database setup.
-     * 
+     *
      * @return void
+     * @throws \Exception When activation fails due to system errors
      */
     public function activate(): void {
         try {
@@ -81,10 +82,11 @@ class Installer {
     
     /**
      * Plugin deactivation
-     * 
+     *
      * Cleans up scheduled cron jobs and performs cleanup tasks.
-     * 
+     *
      * @return void
+     * @throws \Exception When deactivation fails due to system errors
      */
     public function deactivate(): void {
         try {
@@ -110,11 +112,12 @@ class Installer {
     
     /**
      * Plugin uninstallation
-     * 
+     *
      * Removes all plugin data including options, scheduled jobs,
      * and any custom database tables.
-     * 
+     *
      * @return void
+     * @throws \Exception When uninstallation fails due to system errors
      */
     public function uninstall(): void {
         try {

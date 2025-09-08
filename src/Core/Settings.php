@@ -170,10 +170,18 @@ class Settings {
     
     /**
      * Validate a setting value
-     * 
-     * @param string $key Setting key
-     * @param mixed $value Value to validate
-     * @return mixed Validated value or false if invalid
+     *
+     * Validates and sanitizes setting values according to predefined rules.
+     * Supports type validation, range checking, and format validation.
+     *
+     * @param string $key Setting key to validate against validation rules
+     * @param mixed $value Raw value to validate and sanitize
+     * @return mixed Validated and sanitized value, or false if validation fails.
+     *               Supported validation types:
+     *               - string: Validates against allowed values list
+     *               - int: Validates numeric range (min/max)
+     *               - time: Validates HH:MM format (24-hour)
+     *               - email_list: Validates comma-separated email addresses
      */
     private function validateSetting(string $key, $value) {
         if (!isset($this->validation_rules[$key])) {

@@ -80,9 +80,19 @@ class OptimizedQuery implements QueryInterface {
     
     /**
      * Get detailed order statistics
-     * 
-     * @param int $minutes Number of minutes to look back
-     * @return array Order statistics
+     *
+     * Retrieves comprehensive order statistics using optimized queries with
+     * HPOS support and advanced caching. Automatically detects and uses the
+     * most efficient query method available.
+     *
+     * @param int $minutes Number of minutes to look back from current time
+     * @return array Order statistics containing:
+     *               - total_orders: Total order count
+     *               - order_statuses: Breakdown by order status
+     *               - average_value: Average order value (if available)
+     *               - query_time: Query execution time in milliseconds
+     *               - cache_hit: Whether result was served from cache
+     *               - query_method: 'hpos' or 'legacy' indicating query type used
      */
     public function getOrderStats(int $minutes): array {
         // Validate input

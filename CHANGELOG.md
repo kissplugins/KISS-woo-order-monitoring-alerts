@@ -1,5 +1,23 @@
 ## Changelog
 
+### Version 1.5.1
+December 19, 2024
+
+**📚 DOCUMENTATION ENHANCEMENT: Comprehensive PHPDoc Coverage**
+
+**🔧 Enhanced Documentation:**
+- **Complete PHPDoc Coverage** - Added comprehensive PHPDoc comments to all PSR-4 classes
+- **Detailed Parameter Documentation** - Enhanced method documentation with detailed parameter descriptions
+- **Exception Documentation** - Added @throws documentation for all exception-handling methods
+- **Return Value Documentation** - Improved return value documentation with detailed structure descriptions
+- **Class-Level Documentation** - Added comprehensive class-level documentation with usage examples
+
+**🛠️ Technical Improvements:**
+- **WordPress-Docs Standards** - All PSR-4 classes now meet WordPress-Docs coding standards
+- **IDE Support** - Enhanced IDE support with detailed type hints and parameter descriptions
+- **Developer Experience** - Improved code readability and maintainability
+- **Code Quality** - Enhanced inline documentation for complex array structures and method behaviors
+
 ### Version 1.5.0
 September 08, 2024
 

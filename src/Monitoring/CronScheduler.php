@@ -81,8 +81,13 @@ class CronScheduler {
     
     /**
      * Schedule the monitoring cron job
-     * 
-     * @return bool True if scheduled successfully
+     *
+     * Creates a recurring WordPress cron job to monitor order thresholds.
+     * Automatically clears any existing schedules to prevent duplicates and
+     * ensures the job is scheduled with the correct interval.
+     *
+     * @return bool True if the cron job was scheduled successfully, false on failure.
+     *              Failures are logged for debugging purposes.
      */
     public function schedule(): bool {
         try {

@@ -148,7 +148,11 @@ class Plugin {
     /**
      * Initialize plugin components
      *
-     * Sets up all the main plugin functionality components.
+     * Sets up all the main plugin functionality components using dependency injection.
+     * Components are initialized conditionally based on class availability to support
+     * incremental PSR-4 migration phases.
+     *
+     * @return void
      */
     private function initializeComponents(): void {
         // Initialize order monitor with settings dependency

@@ -371,8 +371,18 @@ class SelfTests {
     /**
      * Run all available tests
      *
-     * @param array $tests_to_run Array of test keys to run
-     * @return array Test results
+     * Executes the specified diagnostic tests and returns comprehensive results.
+     * If no tests are specified, all available tests will be run.
+     *
+     * @param array $tests_to_run Array of test keys to run. Valid keys:
+     *                           - 'database_query': Tests database connectivity and order queries
+     *                           - 'threshold_logic': Tests peak hours detection and threshold logic
+     *                           - 'email_system': Tests email configuration and delivery capability
+     *                           - 'cron_scheduling': Tests cron job registration and scheduling
+     * @return array Associative array of test results, keyed by test name. Each result contains:
+     *               - status: 'pass', 'warning', or 'error'
+     *               - message: Human-readable test result message
+     *               - details: Additional diagnostic information (array or string)
      */
     public function runTests(array $tests_to_run = []): array {
         if (empty($tests_to_run)) {

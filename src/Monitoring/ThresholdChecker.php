@@ -106,9 +106,15 @@ class ThresholdChecker {
     
     /**
      * Check if current time is in peak hours
-     * 
-     * @param string|null $time_to_check Specific time to check (H:i format), or null for current time
-     * @return bool True if in peak hours
+     *
+     * Determines whether the specified time falls within the configured peak hours.
+     * Handles complex scenarios including peak hours that span midnight (e.g., 22:00-06:00).
+     * Validates time formats and provides fallback behavior for invalid configurations.
+     *
+     * @param string|null $time_to_check Specific time to check in H:i format (24-hour),
+     *                                   or null to use current WordPress time
+     * @return bool True if the time falls within peak hours, false otherwise.
+     *              Returns false for invalid time formats as a safe fallback.
      */
     public function isPeakHours(?string $time_to_check = null): bool {
         $current_time = $time_to_check ?? current_time('H:i');

@@ -1,5 +1,55 @@
 ## Changelog
 
+### Version 1.5.0
+September 08, 2024
+
+**🎉 MAJOR RELEASE: PSR-4 Architecture Migration (Production Ready)**
+
+**🏗️ Complete Architecture Overhaul:**
+- **PSR-4 Structure** - Migrated entire plugin to modern autoloading architecture
+- **Modular Design** - Separated concerns into dedicated, testable classes
+- **Dependency Injection** - Proper DI container pattern throughout the system
+- **Interface-Based Design** - Pluggable components for easy testing and extension
+
+**📁 New Class Structure:**
+- `src/Core/` - Plugin foundation (Plugin, Settings, Dependencies, Installer)
+- `src/Monitoring/` - Order monitoring system with query optimization
+- `src/Admin/` - Professional admin interface with tab navigation
+- `src/Utils/` - Shared utilities and helper functions
+
+**🚀 Enhanced Admin Interface:**
+- **SettingsPage** - Complete admin interface rewrite with modern UX
+- **TabRenderer** - Professional tab navigation with responsive design
+- **SelfTests** - Comprehensive diagnostic system with 4 detailed tests
+- **AjaxHandler** - Secure AJAX handling with proper nonce validation
+
+**⚡ High-Performance Monitoring:**
+- **OrderMonitor** - Main coordinator with intelligent component management
+- **ThresholdChecker** - Advanced peak hours detection with midnight spanning
+- **CronScheduler** - Smart cron management with diagnostics and auto-repair
+- **OptimizedQuery** - HPOS support for WooCommerce 8.0+ performance
+- **QueryInterface** - Pluggable query system with automatic fallback
+
+**🔧 Production-Grade Features:**
+- **Backward Compatibility** - 100% compatible with existing installations
+- **Feature Flags** - Safe deployment with `WOOM_USE_PSR4` constant
+- **Error Handling** - Comprehensive exception handling and logging
+- **Performance Optimization** - Multi-level caching and query optimization
+- **Testing Ready** - PHPUnit configuration and CI/CD pipeline support
+
+**📊 Enhanced Self-Testing:**
+- **Database Test** - Validates connectivity, tables, and HPOS support
+- **Threshold Test** - Validates peak hours logic and midnight spanning
+- **Email Test** - Checks configuration, SMTP settings, and delivery
+- **Cron Test** - Comprehensive cron diagnostics with auto-repair
+
+**🎯 Migration Benefits:**
+- **Maintainability** - Clean, organized code structure
+- **Testability** - Interface-based design for easy unit testing
+- **Extensibility** - Plugin architecture for future enhancements
+- **Performance** - Optimized queries and intelligent caching
+- **Reliability** - Comprehensive error handling and diagnostics
+
 ### Version 1.4.1
 September 08, 2025
 

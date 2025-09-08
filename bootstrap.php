@@ -88,13 +88,14 @@ function woom_should_use_psr4() {
         return false;
     }
 
-    // For now, disable PSR-4 until Phase 4 is complete
-    // This prevents the incomplete PSR-4 structure from breaking the plugin
-    return false;
+    // Auto-detect based on file existence - Phase 4 complete!
+    $psr4_main_class = WOOM_PLUGIN_DIR . 'src/Core/Plugin.php';
+    $admin_classes_exist = file_exists(WOOM_PLUGIN_DIR . 'src/Admin/SettingsPage.php') &&
+                          file_exists(WOOM_PLUGIN_DIR . 'src/Admin/TabRenderer.php') &&
+                          file_exists(WOOM_PLUGIN_DIR . 'src/Admin/SelfTests.php') &&
+                          file_exists(WOOM_PLUGIN_DIR . 'src/Admin/AjaxHandler.php');
 
-    // Auto-detect based on file existence (will be enabled after Phase 4)
-    // $psr4_main_class = WOOM_PLUGIN_DIR . 'src/Core/Plugin.php';
-    // return file_exists($psr4_main_class);
+    return file_exists($psr4_main_class) && $admin_classes_exist;
 }
 
 /**

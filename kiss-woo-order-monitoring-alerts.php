@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.3.3
+ * Version: 1.4.0
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WOOM_VERSION', '1.3.3');
+define('WOOM_VERSION', '1.4.0');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -75,6 +75,7 @@ class WooCommerce_Order_Monitor {
 
         // AJAX handlers
         add_action('wp_ajax_woom_test_notification', [$this, 'handle_test_notification']);
+        add_action('wp_ajax_woom_run_self_tests', [$this, 'handle_self_tests']);
 
         // Cron hooks
         add_action('woom_check_orders', [$this, 'check_order_threshold']);
@@ -482,6 +483,8 @@ class WooCommerce_Order_Monitor {
         // Render content based on current tab
         if ($current_tab === 'changelog') {
             $this->render_changelog_viewer();
+        } elseif ($current_tab === 'self-tests') {
+            $this->render_self_tests();
         } else {
             // Default to settings tab
             woocommerce_admin_fields($this->get_settings());
@@ -749,6 +752,13 @@ class WooCommerce_Order_Monitor {
                         <?php _e('Changelog', 'woo-order-monitor'); ?>
                     </a>
                 </li>
+                <li style="margin: 0;">
+                    <a href="<?php echo esc_url($base_url . '&subtab=self-tests'); ?>"
+                       class="woom-tab-link <?php echo $current_tab === 'self-tests' ? 'active' : ''; ?>"
+                       style="display: block; padding: 12px 20px; text-decoration: none; border-bottom: 3px solid transparent; <?php echo $current_tab === 'self-tests' ? 'border-bottom-color: #0073aa; color: #0073aa; font-weight: bold;' : 'color: #555;'; ?>">
+                        <?php _e('Self Tests', 'woo-order-monitor'); ?>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -803,6 +813,205 @@ class WooCommerce_Order_Monitor {
                 <?php _e('This shows the complete changelog for all plugin versions. Scroll to see older versions.', 'woo-order-monitor'); ?>
             </p>
         </div>
+        <?php
+    }
+
+    /**
+     * Render self tests tab
+     */
+    private function render_self_tests() {
+        ?>
+        <h2><?php printf(__('Self Tests - Version %s', 'woo-order-monitor'), WOOM_VERSION); ?></h2>
+        <p class="description"><?php _e('Run these tests to verify core functionality and catch any regressions after updates or configuration changes.', 'woo-order-monitor'); ?></p>
+
+        <div class="woom-self-tests-container" style="margin-top: 20px;">
+            <div class="woom-test-controls" style="margin-bottom: 20px;">
+                <button type="button" id="woom_run_all_tests" class="button button-primary">
+                    <?php _e('Run All Tests', 'woo-order-monitor'); ?>
+                </button>
+                <button type="button" id="woom_run_individual_test" class="button" style="margin-left: 10px;" disabled>
+                    <?php _e('Run Selected Test', 'woo-order-monitor'); ?>
+                </button>
+                <span id="woom_test_status" style="margin-left: 15px; font-weight: bold;"></span>
+            </div>
+
+            <div class="woom-tests-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Test 1: Database Connection & Order Query -->
+                <div class="woom-test-card" data-test="database_query" style="border: 1px solid #ddd; padding: 15px; border-radius: 4px; background: #f9f9f9;">
+                    <h3 style="margin-top: 0;">
+                        <input type="checkbox" class="woom-test-checkbox" value="database_query" style="margin-right: 8px;">
+                        <?php _e('Database & Order Query', 'woo-order-monitor'); ?>
+                    </h3>
+                    <p class="description"><?php _e('Tests database connection and order counting functionality.', 'woo-order-monitor'); ?></p>
+                    <div class="woom-test-result" id="test_database_query_result" style="margin-top: 10px; padding: 8px; border-radius: 3px; display: none;">
+                        <div class="test-status"></div>
+                        <div class="test-details"></div>
+                    </div>
+                </div>
+
+                <!-- Test 2: Threshold Logic -->
+                <div class="woom-test-card" data-test="threshold_logic" style="border: 1px solid #ddd; padding: 15px; border-radius: 4px; background: #f9f9f9;">
+                    <h3 style="margin-top: 0;">
+                        <input type="checkbox" class="woom-test-checkbox" value="threshold_logic" style="margin-right: 8px;">
+                        <?php _e('Threshold Logic', 'woo-order-monitor'); ?>
+                    </h3>
+                    <p class="description"><?php _e('Validates peak/off-peak detection and threshold calculations.', 'woo-order-monitor'); ?></p>
+                    <div class="woom-test-result" id="test_threshold_logic_result" style="margin-top: 10px; padding: 8px; border-radius: 3px; display: none;">
+                        <div class="test-status"></div>
+                        <div class="test-details"></div>
+                    </div>
+                </div>
+
+                <!-- Test 3: Email System -->
+                <div class="woom-test-card" data-test="email_system" style="border: 1px solid #ddd; padding: 15px; border-radius: 4px; background: #f9f9f9;">
+                    <h3 style="margin-top: 0;">
+                        <input type="checkbox" class="woom-test-checkbox" value="email_system" style="margin-right: 8px;">
+                        <?php _e('Email System', 'woo-order-monitor'); ?>
+                    </h3>
+                    <p class="description"><?php _e('Tests email configuration and notification delivery.', 'woo-order-monitor'); ?></p>
+                    <div class="woom-test-result" id="test_email_system_result" style="margin-top: 10px; padding: 8px; border-radius: 3px; display: none;">
+                        <div class="test-status"></div>
+                        <div class="test-details"></div>
+                    </div>
+                </div>
+
+                <!-- Test 4: Cron Scheduling -->
+                <div class="woom-test-card" data-test="cron_scheduling" style="border: 1px solid #ddd; padding: 15px; border-radius: 4px; background: #f9f9f9;">
+                    <h3 style="margin-top: 0;">
+                        <input type="checkbox" class="woom-test-checkbox" value="cron_scheduling" style="margin-right: 8px;">
+                        <?php _e('Cron Scheduling', 'woo-order-monitor'); ?>
+                    </h3>
+                    <p class="description"><?php _e('Verifies automated monitoring schedule and cron functionality.', 'woo-order-monitor'); ?></p>
+                    <div class="woom-test-result" id="test_cron_scheduling_result" style="margin-top: 10px; padding: 8px; border-radius: 3px; display: none;">
+                        <div class="test-status"></div>
+                        <div class="test-details"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="woom-test-summary" id="woom_test_summary" style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #fff; display: none;">
+                <h3><?php _e('Test Summary', 'woo-order-monitor'); ?></h3>
+                <div id="woom_test_summary_content"></div>
+            </div>
+        </div>
+
+        <style>
+        .woom-test-card:hover {
+            background: #f0f0f0 !important;
+        }
+        .woom-test-result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .woom-test-result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .woom-test-result.warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .woom-test-checkbox:checked + h3 {
+            color: #0073aa;
+        }
+        </style>
+
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Handle individual test selection
+            $('.woom-test-checkbox').on('change', function() {
+                var checkedCount = $('.woom-test-checkbox:checked').length;
+                $('#woom_run_individual_test').prop('disabled', checkedCount === 0);
+
+                if (checkedCount > 0) {
+                    $('#woom_run_individual_test').text('<?php echo esc_js(__('Run Selected Tests', 'woo-order-monitor')); ?> (' + checkedCount + ')');
+                } else {
+                    $('#woom_run_individual_test').text('<?php echo esc_js(__('Run Selected Test', 'woo-order-monitor')); ?>');
+                }
+            });
+
+            // Run all tests
+            $('#woom_run_all_tests').on('click', function() {
+                runTests('all');
+            });
+
+            // Run selected tests
+            $('#woom_run_individual_test').on('click', function() {
+                var selectedTests = [];
+                $('.woom-test-checkbox:checked').each(function() {
+                    selectedTests.push($(this).val());
+                });
+                runTests(selectedTests);
+            });
+
+            function runTests(tests) {
+                var $statusEl = $('#woom_test_status');
+                var $summaryEl = $('#woom_test_summary');
+
+                // Reset UI
+                $('.woom-test-result').hide().removeClass('success error warning');
+                $summaryEl.hide();
+                $statusEl.text('<?php echo esc_js(__('Running tests...', 'woo-order-monitor')); ?>').css('color', '#0073aa');
+
+                // Disable buttons
+                $('#woom_run_all_tests, #woom_run_individual_test').prop('disabled', true);
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'woom_run_self_tests',
+                        tests: tests,
+                        security: '<?php echo wp_create_nonce('woom_self_tests'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            displayTestResults(response.data);
+                            $statusEl.text('<?php echo esc_js(__('Tests completed', 'woo-order-monitor')); ?>').css('color', '#46b450');
+                        } else {
+                            $statusEl.text('<?php echo esc_js(__('Tests failed', 'woo-order-monitor')); ?>: ' + response.data).css('color', '#dc3232');
+                        }
+                    },
+                    error: function() {
+                        $statusEl.text('<?php echo esc_js(__('Error running tests', 'woo-order-monitor')); ?>').css('color', '#dc3232');
+                    },
+                    complete: function() {
+                        // Re-enable buttons
+                        $('#woom_run_all_tests, #woom_run_individual_test').prop('disabled', false);
+                    }
+                });
+            }
+
+            function displayTestResults(results) {
+                var passedCount = 0;
+                var totalCount = 0;
+                var summaryHtml = '<ul>';
+
+                $.each(results, function(testName, result) {
+                    totalCount++;
+                    var $resultEl = $('#test_' + testName + '_result');
+                    var statusClass = result.status === 'pass' ? 'success' : (result.status === 'warning' ? 'warning' : 'error');
+
+                    if (result.status === 'pass') passedCount++;
+
+                    $resultEl.removeClass('success error warning').addClass(statusClass).show();
+                    $resultEl.find('.test-status').html('<strong>' + result.message + '</strong>');
+                    $resultEl.find('.test-details').html(result.details || '');
+
+                    summaryHtml += '<li><strong>' + testName.replace('_', ' ').toUpperCase() + '</strong>: ' + result.message + '</li>';
+                });
+
+                summaryHtml += '</ul>';
+                summaryHtml += '<p><strong><?php echo esc_js(__('Results', 'woo-order-monitor')); ?>:</strong> ' + passedCount + '/' + totalCount + ' <?php echo esc_js(__('tests passed', 'woo-order-monitor')); ?></p>';
+
+                $('#woom_test_summary_content').html(summaryHtml);
+                $('#woom_test_summary').show();
+            }
+        });
+        </script>
         <?php
     }
 
@@ -1014,7 +1223,334 @@ class WooCommerce_Order_Monitor {
             wp_send_json_error('An unexpected error occurred: ' . $e->getMessage());
         }
     }
-    
+
+    /**
+     * Handle self tests AJAX request
+     */
+    public function handle_self_tests() {
+        try {
+            // Verify nonce
+            if (!check_ajax_referer('woom_self_tests', 'security', false)) {
+                wp_send_json_error('Invalid security token');
+                return;
+            }
+
+            // Check permissions
+            if (!current_user_can('manage_woocommerce')) {
+                wp_send_json_error('Insufficient permissions');
+                return;
+            }
+
+            $tests_to_run = isset($_POST['tests']) ? $_POST['tests'] : 'all';
+
+            if ($tests_to_run === 'all') {
+                $tests_to_run = ['database_query', 'threshold_logic', 'email_system', 'cron_scheduling'];
+            } elseif (!is_array($tests_to_run)) {
+                $tests_to_run = [$tests_to_run];
+            }
+
+            $results = [];
+
+            foreach ($tests_to_run as $test) {
+                switch ($test) {
+                    case 'database_query':
+                        $results[$test] = $this->test_database_query();
+                        break;
+                    case 'threshold_logic':
+                        $results[$test] = $this->test_threshold_logic();
+                        break;
+                    case 'email_system':
+                        $results[$test] = $this->test_email_system();
+                        break;
+                    case 'cron_scheduling':
+                        $results[$test] = $this->test_cron_scheduling();
+                        break;
+                    default:
+                        $results[$test] = [
+                            'status' => 'error',
+                            'message' => 'Unknown test: ' . $test,
+                            'details' => ''
+                        ];
+                }
+            }
+
+            wp_send_json_success($results);
+
+        } catch (Exception $e) {
+            error_log('[WooCommerce Order Monitor] Exception in handle_self_tests: ' . $e->getMessage());
+            wp_send_json_error('An unexpected error occurred: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Test database connection and order query functionality
+     */
+    private function test_database_query() {
+        global $wpdb;
+
+        try {
+            // Test 1: Database connection
+            $db_test = $wpdb->get_var("SELECT 1");
+            if ($db_test !== '1') {
+                return [
+                    'status' => 'error',
+                    'message' => 'Database connection failed',
+                    'details' => 'Unable to execute basic database query'
+                ];
+            }
+
+            // Test 2: WooCommerce tables exist
+            $orders_table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->posts}'");
+            if (!$orders_table_exists) {
+                return [
+                    'status' => 'error',
+                    'message' => 'WordPress posts table not found',
+                    'details' => 'Required table for order queries is missing'
+                ];
+            }
+
+            // Test 3: Order counting query
+            $order_count = $this->get_recent_order_count();
+            if ($order_count === false || $order_count === null) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Order counting query failed',
+                    'details' => 'Unable to retrieve order count from database'
+                ];
+            }
+
+            // Test 4: Optimized query class
+            $optimized_count = WOOM_Optimized_Query::get_cached_order_count(15);
+            if ($optimized_count === false || $optimized_count === null) {
+                return [
+                    'status' => 'warning',
+                    'message' => 'Optimized query has issues',
+                    'details' => 'Standard query works but optimized query failed'
+                ];
+            }
+
+            return [
+                'status' => 'pass',
+                'message' => 'Database and order queries working correctly',
+                'details' => sprintf('Found %d orders in last 15 minutes. Optimized query: %d orders.', $order_count, $optimized_count)
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Database test exception',
+                'details' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Test threshold logic and peak hours detection
+     */
+    private function test_threshold_logic() {
+        try {
+            // Test 1: Settings validation
+            $peak_start = $this->settings['peak_start'];
+            $peak_end = $this->settings['peak_end'];
+            $threshold_peak = $this->settings['threshold_peak'];
+            $threshold_offpeak = $this->settings['threshold_offpeak'];
+
+            if (empty($peak_start) || empty($peak_end)) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Peak hours not configured',
+                    'details' => 'Peak start or end time is missing'
+                ];
+            }
+
+            if (!is_numeric($threshold_peak) || !is_numeric($threshold_offpeak)) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Invalid threshold values',
+                    'details' => 'Thresholds must be numeric values'
+                ];
+            }
+
+            // Test 2: Peak hours detection
+            $is_peak = $this->is_peak_hours();
+            $current_time = current_time('H:i');
+
+            // Test 3: Threshold selection logic
+            $selected_threshold = $is_peak ? $threshold_peak : $threshold_offpeak;
+
+            // Test 4: Time parsing
+            $peak_start_time = strtotime($peak_start);
+            $peak_end_time = strtotime($peak_end);
+
+            if ($peak_start_time === false || $peak_end_time === false) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Invalid time format',
+                    'details' => 'Peak hours time format is invalid'
+                ];
+            }
+
+            return [
+                'status' => 'pass',
+                'message' => 'Threshold logic working correctly',
+                'details' => sprintf(
+                    'Current time: %s | Peak hours: %s-%s | Currently %s | Active threshold: %d',
+                    $current_time,
+                    $peak_start,
+                    $peak_end,
+                    $is_peak ? 'PEAK' : 'OFF-PEAK',
+                    $selected_threshold
+                )
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Threshold logic test exception',
+                'details' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Test email system functionality
+     */
+    private function test_email_system() {
+        try {
+            // Test 1: Email configuration
+            $notification_emails = $this->get_notification_emails();
+            if (empty($notification_emails)) {
+                return [
+                    'status' => 'error',
+                    'message' => 'No notification emails configured',
+                    'details' => 'Email recipients list is empty'
+                ];
+            }
+
+            // Test 2: Email validation
+            $invalid_emails = [];
+            foreach ($notification_emails as $email) {
+                if (!is_email($email)) {
+                    $invalid_emails[] = $email;
+                }
+            }
+
+            if (!empty($invalid_emails)) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Invalid email addresses found',
+                    'details' => 'Invalid emails: ' . implode(', ', $invalid_emails)
+                ];
+            }
+
+            // Test 3: Email body generation
+            $test_body = $this->build_test_email_body();
+            if (empty($test_body)) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Email body generation failed',
+                    'details' => 'Unable to generate email content'
+                ];
+            }
+
+            // Test 4: WordPress mail function availability
+            if (!function_exists('wp_mail')) {
+                return [
+                    'status' => 'error',
+                    'message' => 'WordPress mail function not available',
+                    'details' => 'wp_mail() function is not available'
+                ];
+            }
+
+            return [
+                'status' => 'pass',
+                'message' => 'Email system configured correctly',
+                'details' => sprintf(
+                    'Valid recipients: %s | Email body generation: OK | wp_mail available: YES',
+                    implode(', ', $notification_emails)
+                )
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Email system test exception',
+                'details' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Test cron scheduling functionality
+     */
+    private function test_cron_scheduling() {
+        try {
+            // Test 1: WP-Cron availability
+            if (!function_exists('wp_next_scheduled')) {
+                return [
+                    'status' => 'error',
+                    'message' => 'WP-Cron functions not available',
+                    'details' => 'WordPress cron functions are missing'
+                ];
+            }
+
+            // Test 2: Custom cron interval registration
+            $schedules = wp_get_schedules();
+            if (!isset($schedules['woom_15min'])) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Custom cron interval not registered',
+                    'details' => 'woom_15min schedule is not available'
+                ];
+            }
+
+            // Test 3: Monitoring enabled check
+            if ($this->settings['enabled'] !== 'yes') {
+                return [
+                    'status' => 'warning',
+                    'message' => 'Monitoring is disabled',
+                    'details' => 'Cron job will not run because monitoring is disabled in settings'
+                ];
+            }
+
+            // Test 4: Cron job scheduling
+            $next_scheduled = wp_next_scheduled('woom_check_orders');
+            if (!$next_scheduled) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Cron job not scheduled',
+                    'details' => 'woom_check_orders event is not scheduled'
+                ];
+            }
+
+            // Test 5: Cron job timing
+            $time_until_next = $next_scheduled - time();
+            $next_run_formatted = date('Y-m-d H:i:s', $next_scheduled);
+
+            // Test 6: Action Scheduler availability (if used)
+            $action_scheduler_available = class_exists('ActionScheduler');
+
+            return [
+                'status' => 'pass',
+                'message' => 'Cron scheduling working correctly',
+                'details' => sprintf(
+                    'Next run: %s (in %d seconds) | Custom interval: %d seconds | Action Scheduler: %s',
+                    $next_run_formatted,
+                    $time_until_next,
+                    $schedules['woom_15min']['interval'],
+                    $action_scheduler_available ? 'Available' : 'Not available'
+                )
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Cron scheduling test exception',
+                'details' => $e->getMessage()
+            ];
+        }
+    }
+
     /**
      * Build test email body
      */

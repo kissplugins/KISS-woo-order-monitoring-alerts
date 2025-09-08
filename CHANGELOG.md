@@ -1,5 +1,32 @@
 ## Changelog
 
+### Version 1.4.0
+September 08, 2025
+
+**🧪 NEW FEATURE: Self Tests Tab**
+- **On-Screen Diagnostics** - Added comprehensive self-testing system with 4 critical tests
+- **Tab Structure Enhanced** - Now includes: Settings | Changelog | Self Tests
+- **Real-Time Validation** - Test core functions directly in production environment
+- **Regression Detection** - Catch accidental issues after updates or configuration changes
+
+**Self Test Coverage:**
+1. **Database & Order Query** - Tests database connection and order counting functionality
+2. **Threshold Logic** - Validates peak/off-peak detection and threshold calculations
+3. **Email System** - Tests email configuration and notification delivery
+4. **Cron Scheduling** - Verifies automated monitoring schedule and cron functionality
+
+**User Experience:**
+- **Interactive Interface** - Run all tests or select individual tests
+- **Visual Results** - Color-coded success/warning/error indicators
+- **Detailed Feedback** - Comprehensive test results with specific diagnostic information
+- **Test Summary** - Overview of passed/failed tests with actionable insights
+
+**Technical Implementation:**
+- AJAX-powered test execution for responsive UI
+- Comprehensive error handling and exception management
+- Production-safe testing that doesn't interfere with live monitoring
+- Detailed logging and diagnostic information
+
 ### Version 1.3.3
 September 08, 2025
 

@@ -1,5 +1,52 @@
 ## Changelog
 
+### Version 1.4.1
+September 08, 2025
+
+**🔧 CRITICAL FIX: Cron Scheduling**
+- **Fixed Custom Cron Interval Registration** - Moved cron schedule registration to init_hooks for proper timing
+- **Enhanced Self Test Diagnostics** - Improved cron scheduling test with auto-repair functionality
+- **Better Error Detection** - Added checks for WP-Cron disabled state and Action Scheduler availability
+- **Auto-Recovery** - Self test can now automatically schedule missing cron jobs
+
+**Technical Improvements:**
+- Removed duplicate cron schedule registration from activation hook
+- Added comprehensive cron diagnostics with actionable error messages
+- Enhanced test feedback with specific troubleshooting guidance
+- Improved hook timing to ensure cron schedules are always available
+
+**User Experience:**
+- Self Tests now provide clear guidance when cron issues are detected
+- Automatic detection and notification of WP-Cron disabled state
+- Better error messages with specific next steps for resolution
+
+### Version 1.4.0
+September 08, 2025
+
+**🧪 NEW FEATURE: Self Tests Tab**
+- **On-Screen Diagnostics** - Added comprehensive self-testing system with 4 critical tests
+- **Tab Structure Enhanced** - Now includes: Settings | Changelog | Self Tests
+- **Real-Time Validation** - Test core functions directly in production environment
+- **Regression Detection** - Catch accidental issues after updates or configuration changes
+
+**Self Test Coverage:**
+1. **Database & Order Query** - Tests database connection and order counting functionality
+2. **Threshold Logic** - Validates peak/off-peak detection and threshold calculations
+3. **Email System** - Tests email configuration and notification delivery
+4. **Cron Scheduling** - Verifies automated monitoring schedule and cron functionality
+
+**User Experience:**
+- **Interactive Interface** - Run all tests or select individual tests
+- **Visual Results** - Color-coded success/warning/error indicators
+- **Detailed Feedback** - Comprehensive test results with specific diagnostic information
+- **Test Summary** - Overview of passed/failed tests with actionable insights
+
+**Technical Implementation:**
+- AJAX-powered test execution for responsive UI
+- Comprehensive error handling and exception management
+- Production-safe testing that doesn't interfere with live monitoring
+- Detailed logging and diagnostic information
+
 ### Version 1.3.3
 September 08, 2025
 

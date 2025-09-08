@@ -1,5 +1,21 @@
 ## Changelog
 
+### Version 1.3.3
+September 08, 2025
+
+**DevOps & CI/CD Improvements:**
+- **Composer Integration** - Added proper composer.json for dependency management
+- **Local Dependencies** - Switched from global to local Composer dependencies in CI
+- **Package Management** - Configured allow-plugins for dealerdirect/phpcodesniffer-composer-installer
+- **CI Optimization** - Streamlined GitHub Actions workflow to use composer scripts
+- **Tool Configuration** - Removed redundant tool installations from setup-php action
+
+**Technical Enhancements:**
+- Fixed CI pipeline composer plugin conflicts
+- Improved dependency resolution and caching
+- Enhanced code quality tool integration
+- Better error handling in CI environment
+
 ### Version 1.3.2
 September 08, 2025
 

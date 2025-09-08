@@ -1,5 +1,53 @@
 ## Changelog
 
+### Version 1.5.0
+September 08, 2025
+
+**🚨 PRODUCTION SAFETY MAJOR UPDATE**
+- **Critical Email Spam Prevention** - Implemented comprehensive alert throttling system with cooldown periods
+- **Alert Frequency Management** - Maximum daily alert limits (default: 6/day) with 2-hour cooldown between alerts
+- **Multi-Channel Notifications** - Webhook backup notifications for when email fails
+- **Enhanced Database Performance** - Added query caching, HPOS support, and optimized SQL queries
+- **System Failure Monitoring** - Separate alerts for monitoring system failures vs. low order volume
+- **Manual Trigger Capability** - "Run Check Now" button for immediate testing and diagnostics
+- **Bloomz Production Defaults** - Conservative thresholds (3 peak, 1 off-peak) and 10 AM-8 PM business hours
+
+**Alert Throttling Features:**
+- Separate cooldown tracking for peak/off-peak hours
+- Daily alert counters with automatic reset
+- Escalated alert styling for repeated issues  
+- Alert type classification (first_today, normal, escalated)
+- Comprehensive throttling information in email alerts
+- Admin dashboard shows cooldown status and daily counts
+
+**Performance Improvements:**
+- WordPress object caching with configurable duration (5-minute default)
+- Automatic HPOS detection and optimized queries
+- Fallback query strategies for database errors
+- Query timeout protection and error recovery
+- Upper time bounds on queries for better performance
+
+**System Reliability:**
+- System failure alerts separate from threshold alerts
+- Webhook notifications as email backup
+- Enhanced error logging with context
+- Database query fallback mechanisms
+- Manual check functionality with detailed results
+
+**User Experience:**
+- Real-time manual check results with status indicators
+- Cron scheduling status monitoring and warnings
+- Enhanced email templates with throttling information
+- Production-safe default settings for Bloomz deployment
+- Comprehensive admin interface improvements
+
+**Developer Features:**
+- Improved error handling with try/catch blocks
+- Enhanced logging with categorized messages
+- AJAX handlers for manual operations
+- Extensible webhook notification system
+- Cache management and optimization
+
 ### Version 1.4.1
 September 08, 2025
 

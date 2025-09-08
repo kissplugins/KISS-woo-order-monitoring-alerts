@@ -12,8 +12,6 @@
 namespace KissPlugins\WooOrderMonitor\Core;
 
 use KissPlugins\WooOrderMonitor\Monitoring\OrderMonitor;
-use KissPlugins\WooOrderMonitor\Admin\SettingsPage;
-use KissPlugins\WooOrderMonitor\Integration\ActionScheduler;
 
 /**
  * Main Plugin Class
@@ -53,15 +51,15 @@ class Plugin {
     
     /**
      * Settings page
-     * 
-     * @var SettingsPage
+     *
+     * @var object|null
      */
     private $settings_page;
-    
+
     /**
      * Action Scheduler integration
-     * 
-     * @var ActionScheduler
+     *
+     * @var object|null
      */
     private $action_scheduler;
     
@@ -149,19 +147,22 @@ class Plugin {
     
     /**
      * Initialize plugin components
-     * 
+     *
      * Sets up all the main plugin functionality components.
      */
     private function initializeComponents(): void {
         // Initialize order monitor with settings dependency
         $this->order_monitor = new OrderMonitor($this->settings);
-        
-        // Initialize settings page with settings dependency
-        $this->settings_page = new SettingsPage($this->settings);
-        
-        // Initialize Action Scheduler integration if available
-        if (function_exists('as_schedule_recurring_action')) {
-            $this->action_scheduler = new ActionScheduler($this->settings, $this->order_monitor);
+
+        // Initialize settings page if class exists (Phase 4)
+        if (class_exists('KissPlugins\WooOrderMonitor\Admin\SettingsPage')) {
+            $this->settings_page = new \KissPlugins\WooOrderMonitor\Admin\SettingsPage($this->settings);
+        }
+
+        // Initialize Action Scheduler integration if available (Phase 5)
+        if (function_exists('as_schedule_recurring_action') &&
+            class_exists('KissPlugins\WooOrderMonitor\Integration\ActionScheduler')) {
+            $this->action_scheduler = new \KissPlugins\WooOrderMonitor\Integration\ActionScheduler($this->settings, $this->order_monitor);
         }
     }
     
@@ -189,12 +190,12 @@ class Plugin {
         if ($this->order_monitor) {
             $this->order_monitor->initializeHooks();
         }
-        
-        if ($this->settings_page) {
+
+        if ($this->settings_page && method_exists($this->settings_page, 'initializeHooks')) {
             $this->settings_page->initializeHooks();
         }
-        
-        if ($this->action_scheduler) {
+
+        if ($this->action_scheduler && method_exists($this->action_scheduler, 'initializeHooks')) {
             $this->action_scheduler->initializeHooks();
         }
     }
@@ -299,10 +300,10 @@ class Plugin {
     
     /**
      * Get settings page
-     * 
-     * @return SettingsPage|null
+     *
+     * @return object|null
      */
-    public function getSettingsPage(): ?SettingsPage {
+    public function getSettingsPage() {
         return $this->settings_page;
     }
     

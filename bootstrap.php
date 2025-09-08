@@ -71,10 +71,10 @@ function woom_init_plugin() {
 
 /**
  * Check if we should use PSR-4 structure
- * 
+ *
  * This function determines whether to use the new PSR-4 structure
  * or fall back to the legacy single-file structure.
- * 
+ *
  * @return bool True if PSR-4 should be used, false otherwise
  */
 function woom_should_use_psr4() {
@@ -82,15 +82,19 @@ function woom_should_use_psr4() {
     if (defined('WOOM_USE_PSR4') && WOOM_USE_PSR4) {
         return true;
     }
-    
+
     // Check if PSR-4 is explicitly disabled
     if (defined('WOOM_USE_PSR4') && !WOOM_USE_PSR4) {
         return false;
     }
-    
-    // Auto-detect based on file existence
-    $psr4_main_class = WOOM_PLUGIN_DIR . 'src/Core/Plugin.php';
-    return file_exists($psr4_main_class);
+
+    // For now, disable PSR-4 until Phase 4 is complete
+    // This prevents the incomplete PSR-4 structure from breaking the plugin
+    return false;
+
+    // Auto-detect based on file existence (will be enabled after Phase 4)
+    // $psr4_main_class = WOOM_PLUGIN_DIR . 'src/Core/Plugin.php';
+    // return file_exists($psr4_main_class);
 }
 
 /**

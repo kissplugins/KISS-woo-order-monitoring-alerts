@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.4.0
+ * Version: 1.4.1
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WOOM_VERSION', '1.4.0');
+define('WOOM_VERSION', '1.4.1');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -64,6 +64,9 @@ class WooCommerce_Order_Monitor {
 
         // Setup plugin
         add_action('init', [$this, 'init']);
+
+        // Cron schedule registration (must be early)
+        add_filter('cron_schedules', [$this, 'add_cron_interval']);
 
         // Admin hooks
         add_filter('woocommerce_settings_tabs_array', [$this, 'add_settings_tab'], 50);
@@ -140,9 +143,6 @@ class WooCommerce_Order_Monitor {
      * Plugin activation
      */
     public function activate() {
-        // Add custom cron schedule
-        add_filter('cron_schedules', [$this, 'add_cron_interval']);
-        
         // Set default options
         add_option('woom_enabled', 'yes'); // Default to enabled since user intent is clear
         add_option('woom_peak_start', '09:00');
@@ -150,12 +150,12 @@ class WooCommerce_Order_Monitor {
         add_option('woom_threshold_peak', 10);
         add_option('woom_threshold_offpeak', 2);
         add_option('woom_notification_emails', get_option('admin_email'));
-        
-        // Schedule cron if enabled
+
+        // Schedule cron if enabled (cron schedule is registered via init_hooks)
         if ('yes' === get_option('woom_enabled')) {
             wp_schedule_event(time(), 'woom_15min', 'woom_check_orders');
         }
-        
+
         // Flush rewrite rules
         flush_rewrite_rules();
     }
@@ -1497,11 +1497,22 @@ class WooCommerce_Order_Monitor {
             // Test 2: Custom cron interval registration
             $schedules = wp_get_schedules();
             if (!isset($schedules['woom_15min'])) {
-                return [
-                    'status' => 'error',
-                    'message' => 'Custom cron interval not registered',
-                    'details' => 'woom_15min schedule is not available'
-                ];
+                // Try to register the schedule manually for this test
+                $schedules = $this->add_cron_interval($schedules);
+
+                if (!isset($schedules['woom_15min'])) {
+                    return [
+                        'status' => 'error',
+                        'message' => 'Custom cron interval not registered',
+                        'details' => 'woom_15min schedule is not available. Try deactivating and reactivating the plugin.'
+                    ];
+                } else {
+                    return [
+                        'status' => 'warning',
+                        'message' => 'Cron interval registration issue',
+                        'details' => 'Custom interval exists but was not properly registered. This may indicate a hook timing issue. Try deactivating and reactivating the plugin.'
+                    ];
+                }
             }
 
             // Test 3: Monitoring enabled check
@@ -1509,18 +1520,29 @@ class WooCommerce_Order_Monitor {
                 return [
                     'status' => 'warning',
                     'message' => 'Monitoring is disabled',
-                    'details' => 'Cron job will not run because monitoring is disabled in settings'
+                    'details' => 'Cron job will not run because monitoring is disabled in settings. Enable monitoring to schedule the cron job.'
                 ];
             }
 
             // Test 4: Cron job scheduling
             $next_scheduled = wp_next_scheduled('woom_check_orders');
             if (!$next_scheduled) {
-                return [
-                    'status' => 'error',
-                    'message' => 'Cron job not scheduled',
-                    'details' => 'woom_check_orders event is not scheduled'
-                ];
+                // Try to schedule it now
+                $scheduled = wp_schedule_event(time(), 'woom_15min', 'woom_check_orders');
+                if ($scheduled === false) {
+                    return [
+                        'status' => 'error',
+                        'message' => 'Cron job scheduling failed',
+                        'details' => 'Unable to schedule woom_check_orders event. Check if WP-Cron is working properly.'
+                    ];
+                } else {
+                    $next_scheduled = wp_next_scheduled('woom_check_orders');
+                    return [
+                        'status' => 'warning',
+                        'message' => 'Cron job was not scheduled but has been fixed',
+                        'details' => sprintf('Successfully scheduled cron job. Next run: %s', date('Y-m-d H:i:s', $next_scheduled))
+                    ];
+                }
             }
 
             // Test 5: Cron job timing
@@ -1530,16 +1552,30 @@ class WooCommerce_Order_Monitor {
             // Test 6: Action Scheduler availability (if used)
             $action_scheduler_available = class_exists('ActionScheduler');
 
+            // Test 7: Check if WP-Cron is disabled
+            $wp_cron_disabled = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
+
+            $status_details = sprintf(
+                'Next run: %s (in %d seconds) | Custom interval: %d seconds | Action Scheduler: %s | WP-Cron disabled: %s',
+                $next_run_formatted,
+                $time_until_next,
+                $schedules['woom_15min']['interval'],
+                $action_scheduler_available ? 'Available' : 'Not available',
+                $wp_cron_disabled ? 'YES' : 'NO'
+            );
+
+            if ($wp_cron_disabled && !$action_scheduler_available) {
+                return [
+                    'status' => 'warning',
+                    'message' => 'WP-Cron is disabled',
+                    'details' => $status_details . ' | Consider using Action Scheduler or external cron for reliable execution.'
+                ];
+            }
+
             return [
                 'status' => 'pass',
                 'message' => 'Cron scheduling working correctly',
-                'details' => sprintf(
-                    'Next run: %s (in %d seconds) | Custom interval: %d seconds | Action Scheduler: %s',
-                    $next_run_formatted,
-                    $time_until_next,
-                    $schedules['woom_15min']['interval'],
-                    $action_scheduler_available ? 'Available' : 'Not available'
-                )
+                'details' => $status_details
             ];
 
         } catch (Exception $e) {

@@ -1,5 +1,25 @@
 ## Changelog
 
+### Version 1.4.1
+September 08, 2025
+
+**🔧 CRITICAL FIX: Cron Scheduling**
+- **Fixed Custom Cron Interval Registration** - Moved cron schedule registration to init_hooks for proper timing
+- **Enhanced Self Test Diagnostics** - Improved cron scheduling test with auto-repair functionality
+- **Better Error Detection** - Added checks for WP-Cron disabled state and Action Scheduler availability
+- **Auto-Recovery** - Self test can now automatically schedule missing cron jobs
+
+**Technical Improvements:**
+- Removed duplicate cron schedule registration from activation hook
+- Added comprehensive cron diagnostics with actionable error messages
+- Enhanced test feedback with specific troubleshooting guidance
+- Improved hook timing to ensure cron schedules are always available
+
+**User Experience:**
+- Self Tests now provide clear guidance when cron issues are detected
+- Automatic detection and notification of WP-Cron disabled state
+- Better error messages with specific next steps for resolution
+
 ### Version 1.4.0
 September 08, 2025
 

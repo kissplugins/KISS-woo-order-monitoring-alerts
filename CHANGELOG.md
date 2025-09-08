@@ -1,5 +1,22 @@
 ## Changelog
 
+### Version 1.3.0
+September 07, 2025
+
+**Major UI Improvement:**
+- **Simplified tab navigation** - Added clean two-tab interface at top of settings page
+- **Tab structure**: "WooCommerce Order Monitor Settings" | "Changelog"
+- **URL-based navigation** - Uses subtab parameter for proper browser back/forward support
+- **Professional styling** - WordPress admin-style tabs with hover effects and active states
+- **Clean separation** - Settings and changelog now completely separate views
+- **Improved UX** - No more positioning issues, intuitive navigation
+
+**Technical Improvements:**
+- Removed complex hook-based changelog positioning
+- Simplified settings rendering logic
+- Added proper tab state management
+- Enhanced URL structure for better navigation
+
 ### Version 1.2.1
 September 07, 2025
 

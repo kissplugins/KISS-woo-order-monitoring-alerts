@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.2.1
+ * Version: 1.3.0
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WOOM_VERSION', '1.2.1');
+define('WOOM_VERSION', '1.3.0');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -69,7 +69,6 @@ class WooCommerce_Order_Monitor {
         add_filter('woocommerce_settings_tabs_array', [$this, 'add_settings_tab'], 50);
         add_action('woocommerce_settings_tabs_order_monitor', [$this, 'settings_tab']);
         add_action('woocommerce_update_options_order_monitor', [$this, 'update_settings']);
-        add_action('woocommerce_settings_order_monitor', [$this, 'render_changelog_after_form']);
 
         // Plugin action links (Settings link on plugins page)
         add_filter('plugin_action_links_' . WOOM_PLUGIN_BASENAME, [$this, 'add_plugin_action_links']);
@@ -474,10 +473,22 @@ class WooCommerce_Order_Monitor {
      * Settings tab content
      */
     public function settings_tab() {
-        woocommerce_admin_fields($this->get_settings());
+        // Get current sub-tab
+        $current_tab = isset($_GET['subtab']) ? sanitize_text_field($_GET['subtab']) : 'settings';
 
-        // Render custom fields that WooCommerce doesn't support natively
-        $this->render_custom_fields();
+        // Render tab navigation
+        $this->render_tab_navigation($current_tab);
+
+        // Render content based on current tab
+        if ($current_tab === 'changelog') {
+            $this->render_changelog_viewer();
+        } else {
+            // Default to settings tab
+            woocommerce_admin_fields($this->get_settings());
+
+            // Render custom fields that WooCommerce doesn't support natively
+            $this->render_custom_fields();
+        }
 
         // Add custom CSS and JavaScript for test notification and real-time status updates
         ?>
@@ -717,13 +728,40 @@ class WooCommerce_Order_Monitor {
     }
 
     /**
-     * Render changelog after the settings form (called by hook)
+     * Render tab navigation
      */
-    public function render_changelog_after_form() {
-        // Only render on our settings tab
-        if (isset($_GET['tab']) && $_GET['tab'] === 'order_monitor') {
-            $this->render_changelog_viewer();
+    private function render_tab_navigation($current_tab) {
+        $base_url = admin_url('admin.php?page=wc-settings&tab=order_monitor');
+        ?>
+        <div class="woom-tab-navigation" style="margin-bottom: 20px; border-bottom: 1px solid #ccc;">
+            <ul class="woom-tabs" style="margin: 0; padding: 0; list-style: none; display: flex;">
+                <li style="margin: 0;">
+                    <a href="<?php echo esc_url($base_url . '&subtab=settings'); ?>"
+                       class="woom-tab-link <?php echo $current_tab === 'settings' ? 'active' : ''; ?>"
+                       style="display: block; padding: 12px 20px; text-decoration: none; border-bottom: 3px solid transparent; <?php echo $current_tab === 'settings' ? 'border-bottom-color: #0073aa; color: #0073aa; font-weight: bold;' : 'color: #555;'; ?>">
+                        <?php _e('WooCommerce Order Monitor Settings', 'woo-order-monitor'); ?>
+                    </a>
+                </li>
+                <li style="margin: 0;">
+                    <a href="<?php echo esc_url($base_url . '&subtab=changelog'); ?>"
+                       class="woom-tab-link <?php echo $current_tab === 'changelog' ? 'active' : ''; ?>"
+                       style="display: block; padding: 12px 20px; text-decoration: none; border-bottom: 3px solid transparent; <?php echo $current_tab === 'changelog' ? 'border-bottom-color: #0073aa; color: #0073aa; font-weight: bold;' : 'color: #555;'; ?>">
+                        <?php _e('Changelog', 'woo-order-monitor'); ?>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <style>
+        .woom-tab-link:hover {
+            color: #0073aa !important;
+            background-color: #f9f9f9;
         }
+        .woom-tab-link.active {
+            background-color: #f9f9f9;
+        }
+        </style>
+        <?php
     }
 
     /**
@@ -731,7 +769,7 @@ class WooCommerce_Order_Monitor {
      */
     private function render_changelog_viewer() {
         ?>
-        <h2><?php _e('Changelog', 'woo-order-monitor'); ?></h2>
+        <h2><?php printf(__('Changelog - Version %s', 'woo-order-monitor'), WOOM_VERSION); ?></h2>
         <div class="woom-changelog-container" style="margin-top: 20px;">
             <div class="woom-changelog-viewer" style="
                 max-height: 400px;
@@ -844,20 +882,6 @@ class WooCommerce_Order_Monitor {
             'section_end' => [
                 'type' => 'sectionend',
                 'id' => 'woom_section_end'
-            ],
-            'changelog_section' => [
-                'name' => __('Changelog', 'woo-order-monitor'),
-                'type' => 'title',
-                'desc' => '',
-                'id' => 'woom_changelog_section'
-            ],
-            'changelog_viewer' => [
-                'type' => 'changelog_viewer',
-                'id' => 'woom_changelog_viewer'
-            ],
-            'changelog_section_end' => [
-                'type' => 'sectionend',
-                'id' => 'woom_changelog_section_end'
             ]
         ];
         
@@ -1257,10 +1281,8 @@ if (defined('WP_CLI') && WP_CLI) {
         
         /**
          * Check order threshold manually
-         * 
-         * ## EXAMPLES
-         * 
-         *     wp woom check
+         * * ## EXAMPLES
+         * * wp woom check
          */
         public function check() {
             $monitor = WooCommerce_Order_Monitor::get_instance();
@@ -1271,16 +1293,12 @@ if (defined('WP_CLI') && WP_CLI) {
         
         /**
          * Get current order count
-         * 
-         * ## OPTIONS
-         * 
-         * [--minutes=<minutes>]
+         * * ## OPTIONS
+         * * [--minutes=<minutes>]
          * : Number of minutes to look back. Default: 15
-         * 
-         * ## EXAMPLES
-         * 
-         *     wp woom count
-         *     wp woom count --minutes=30
+         * * ## EXAMPLES
+         * * wp woom count
+         * wp woom count --minutes=30
          */
         public function count($args, $assoc_args) {
             $minutes = isset($assoc_args['minutes']) ? intval($assoc_args['minutes']) : 15;
@@ -1293,10 +1311,8 @@ if (defined('WP_CLI') && WP_CLI) {
         
         /**
          * Send test notification
-         * 
-         * ## EXAMPLES
-         * 
-         *     wp woom test
+         * * ## EXAMPLES
+         * * wp woom test
          */
         public function test() {
             $monitor = WooCommerce_Order_Monitor::get_instance();
@@ -1314,10 +1330,8 @@ if (defined('WP_CLI') && WP_CLI) {
         
         /**
          * Show current configuration
-         * 
-         * ## EXAMPLES
-         * 
-         *     wp woom config
+         * * ## EXAMPLES
+         * * wp woom config
          */
         public function config() {
             $settings = [

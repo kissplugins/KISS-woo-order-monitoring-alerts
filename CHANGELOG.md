@@ -1,5 +1,19 @@
 ## Changelog
 
+### Version 1.3.2
+September 08, 2025
+
+**DevOps & CI/CD Fixes:**
+- **GitHub Actions Fix** - Fixed PHP CodeSniffer and WordPress Coding Standards installation
+- **Dependency Management** - Properly configured global Composer packages for CI pipeline
+- **PHPMD Integration** - Fixed PHP Mess Detector installation and execution
+- **Path Configuration** - Corrected PATH and installed_paths for coding standards tools
+
+**Technical Improvements:**
+- Fixed CI pipeline failures related to missing composer.json
+- Enhanced error handling in GitHub Actions workflow
+- Improved tool installation reliability in CI environment
+
 ### Version 1.3.1
 September 07, 2025
 

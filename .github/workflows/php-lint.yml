@@ -88,20 +88,31 @@ jobs:
         tools: phpcs, phpmd, phpstan
         coverage: none
     
-    - name: WordPress Coding Standards
+    - name: Install PHP CodeSniffer and WordPress Standards
       run: |
-        echo "Installing WordPress Coding Standards..."
+        echo "Installing PHP CodeSniffer..."
         composer global require "squizlabs/php_codesniffer=*"
-        composer global require wp-coding-standards/wpcs
-        phpcs --config-set installed_paths ~/.composer/vendor/wp-coding-standards/wpcs
-        
-        echo "Running WordPress Coding Standards check..."
-        phpcs --standard=WordPress --extensions=php --ignore=vendor/,node_modules/ . || true
-    
-    - name: PHP Mess Detector
+        composer global require "wp-coding-standards/wpcs=*"
+        composer global require "phpcompatibility/php-compatibility=*"
+
+        # Add to PATH
+        echo "$HOME/.composer/vendor/bin" >> $GITHUB_PATH
+
+        # Configure PHPCS
+        ~/.composer/vendor/bin/phpcs --config-set installed_paths ~/.composer/vendor/wp-coding-standards/wpcs,~/.composer/vendor/phpcompatibility/php-compatibility
+
+    - name: WordPress Coding Standards Check
       run: |
+        echo "Running WordPress Coding Standards check..."
+        ~/.composer/vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/,node_modules/,.git/ . || echo "PHPCS completed with warnings"
+    
+    - name: Install and Run PHP Mess Detector
+      run: |
+        echo "Installing PHP Mess Detector..."
+        composer global require "phpmd/phpmd=*"
+
         echo "Running PHP Mess Detector..."
-        phpmd . text cleancode,codesize,controversial,design,naming,unusedcode --exclude vendor/,node_modules/ || true
+        ~/.composer/vendor/bin/phpmd . text cleancode,codesize,controversial,design,naming,unusedcode --exclude vendor/,node_modules/,.git/ || echo "PHPMD completed with warnings"
     
     - name: Security Check
       run: |

@@ -61,17 +61,17 @@ class Installer {
             $this->scheduleCronJob();
             
             // Set plugin version
-            update_option('woom_plugin_version', $this->plugin_version);
-            
+            \update_option('woom_plugin_version', $this->plugin_version);
+
             // Set activation timestamp
-            update_option('woom_activated_at', current_time('timestamp'));
-            
+            \update_option('woom_activated_at', \current_time('timestamp'));
+
             // Flush rewrite rules
-            flush_rewrite_rules();
-            
+            \flush_rewrite_rules();
+
             // Log successful activation
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[WooCommerce Order Monitor] Plugin activated successfully.');
+            if (defined('WP_DEBUG') && \WP_DEBUG) {
+                \error_log('[WooCommerce Order Monitor] Plugin activated successfully.');
             }
             
         } catch (\Exception $e) {
@@ -97,11 +97,11 @@ class Installer {
             $this->clearCaches();
             
             // Set deactivation timestamp
-            update_option('woom_deactivated_at', current_time('timestamp'));
-            
+            \update_option('woom_deactivated_at', \current_time('timestamp'));
+
             // Log successful deactivation
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[WooCommerce Order Monitor] Plugin deactivated successfully.');
+            if (defined('WP_DEBUG') && \WP_DEBUG) {
+                \error_log('[WooCommerce Order Monitor] Plugin deactivated successfully.');
             }
             
         } catch (\Exception $e) {
@@ -143,25 +143,19 @@ class Installer {
     
     /**
      * Set up default options
-     * 
+     *
+     * ⚠️  IMPORTANT: Uses SettingsDefaults for all default values.
+     * ⚠️  DO NOT define default values here - use SettingsDefaults instead.
+     *
      * @return void
      */
     private function setupDefaultOptions(): void {
-        // Get default settings from Settings class
-        $defaults = [
-            'woom_enabled' => 'yes',
-            'woom_peak_start' => '09:00',
-            'woom_peak_end' => '18:00',
-            'woom_threshold_peak' => 10,
-            'woom_threshold_offpeak' => 2,
-            'woom_notification_emails' => get_option('admin_email'),
-            'woom_last_check' => 0,
-            'woom_last_alert' => 0
-        ];
-        
+        // Get default settings from centralized configuration
+        $defaults = SettingsDefaults::getActivationDefaults();
+
         // Only add options that don't already exist
         foreach ($defaults as $option_name => $default_value) {
-            add_option($option_name, $default_value);
+            \add_option($option_name, $default_value);
         }
     }
     
@@ -171,15 +165,15 @@ class Installer {
      * @return void
      */
     private function scheduleCronJob(): void {
-        $enabled = get_option('woom_enabled', 'yes');
-        
+        $enabled = \get_option('woom_enabled', 'yes');
+
         if ('yes' === $enabled) {
             // Clear any existing scheduled events first
-            wp_clear_scheduled_hook('woom_check_orders');
-            
+            \wp_clear_scheduled_hook('woom_check_orders');
+
             // Schedule new event
-            if (!wp_next_scheduled('woom_check_orders')) {
-                wp_schedule_event(time(), 'woom_15min', 'woom_check_orders');
+            if (!\wp_next_scheduled('woom_check_orders')) {
+                \wp_schedule_event(\time(), 'woom_15min', 'woom_check_orders');
             }
         }
     }
@@ -191,11 +185,11 @@ class Installer {
      */
     private function clearCronJobs(): void {
         // Clear WP-Cron scheduled events
-        wp_clear_scheduled_hook('woom_check_orders');
-        
+        \wp_clear_scheduled_hook('woom_check_orders');
+
         // Clear Action Scheduler events if available
-        if (function_exists('as_unschedule_all_actions')) {
-            as_unschedule_all_actions('woom_as_check_orders', [], 'woo-order-monitor');
+        if (\function_exists('as_unschedule_all_actions')) {
+            \as_unschedule_all_actions('woom_as_check_orders', [], 'woo-order-monitor');
         }
     }
     
@@ -220,7 +214,7 @@ class Installer {
         ];
         
         foreach ($options_to_remove as $option) {
-            delete_option($option);
+            \delete_option($option);
         }
     }
     

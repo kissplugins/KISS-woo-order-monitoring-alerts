@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.5.2
+ * Version: 1.5.3
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -17,8 +17,30 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+/*
+ * ⚠️  CRITICAL SETTINGS CENTRALIZATION NOTICE ⚠️
+ *
+ * ALL PLUGIN DEFAULT VALUES ARE NOW CENTRALIZED IN:
+ * src/Core/SettingsDefaults.php
+ *
+ * 🚫 DO NOT DEFINE DEFAULT VALUES ANYWHERE ELSE IN THE CODEBASE
+ * 🚫 DO NOT MODIFY DEFAULT VALUES IN THIS FILE
+ * 🚫 DO NOT ADD NEW HARDCODED DEFAULTS
+ *
+ * ✅ TO CHANGE DEFAULT VALUES:
+ * 1. Edit src/Core/SettingsDefaults.php ONLY
+ * 2. Update the $master_defaults array
+ * 3. Test thoroughly with self-tests
+ * 4. Update version number and changelog
+ *
+ * This centralization prevents configuration drift and ensures
+ * consistency across UI forms, activation code, and runtime logic.
+ *
+ * Last updated: v1.5.1 - Settings centralization implementation
+ */
+
 // Define plugin constants
-define('WOOM_VERSION', '1.5.2');
+define('WOOM_VERSION', '1.5.3');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -127,27 +149,37 @@ class WooCommerce_Order_Monitor {
     
     /**
      * Load plugin settings
+     *
+     * ⚠️  CRITICAL: This method is DEPRECATED and should be replaced with the new Settings class.
+     * ⚠️  It now uses SettingsDefaults to ensure consistency until migration is complete.
+     * ⚠️  DO NOT modify default values here - use SettingsDefaults instead.
      */
     private function load_settings() {
+        // Import the centralized defaults class
+        require_once plugin_dir_path(__FILE__) . 'src/Core/SettingsDefaults.php';
+
+        // Get defaults from centralized configuration
+        $defaults = \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getRuntimeDefaults();
+
         $this->settings = [
-            'enabled' => get_option('woom_enabled', 'yes'), // Default to enabled
-            'peak_start' => get_option('woom_peak_start', '10:00'), // Bloomz business hours
-            'peak_end' => get_option('woom_peak_end', '20:00'), // 8 PM end for Bloomz
-            'threshold_peak' => intval(get_option('woom_threshold_peak', 3)), // Conservative production setting
-            'threshold_offpeak' => intval(get_option('woom_threshold_offpeak', 1)), // Very conservative
-            'notification_emails' => get_option('woom_notification_emails', get_option('admin_email')),
-            'last_check' => get_option('woom_last_check', 0),
-            'last_alert' => get_option('woom_last_alert', 0),
+            'enabled' => get_option('woom_enabled', $defaults['enabled']),
+            'peak_start' => get_option('woom_peak_start', $defaults['peak_start']),
+            'peak_end' => get_option('woom_peak_end', $defaults['peak_end']),
+            'threshold_peak' => intval(get_option('woom_threshold_peak', $defaults['threshold_peak'])),
+            'threshold_offpeak' => intval(get_option('woom_threshold_offpeak', $defaults['threshold_offpeak'])),
+            'notification_emails' => get_option('woom_notification_emails', $defaults['notification_emails']),
+            'last_check' => get_option('woom_last_check', $defaults['last_check']),
+            'last_alert' => get_option('woom_last_alert', $defaults['last_alert']),
             // Production safety settings
-            'alert_cooldown' => intval(get_option('woom_alert_cooldown', 7200)), // 2 hours between alerts
-            'max_daily_alerts' => intval(get_option('woom_max_daily_alerts', 6)), // Maximum 6 alerts per day
-            'last_alert_peak' => get_option('woom_last_alert_peak', 0), // Track peak/off-peak separately
-            'last_alert_offpeak' => get_option('woom_last_alert_offpeak', 0),
-            'daily_alert_count' => intval(get_option('woom_daily_alert_count', 0)),
-            'daily_alert_date' => get_option('woom_daily_alert_date', date('Y-m-d')),
-            'enable_system_alerts' => get_option('woom_enable_system_alerts', 'yes'), // System failure notifications
-            'webhook_url' => get_option('woom_webhook_url', ''), // Backup notification webhook
-            'query_cache_duration' => intval(get_option('woom_query_cache_duration', 300)) // 5-minute cache
+            'alert_cooldown' => intval(get_option('woom_alert_cooldown', $defaults['alert_cooldown'])),
+            'max_daily_alerts' => intval(get_option('woom_max_daily_alerts', $defaults['max_daily_alerts'])),
+            'last_alert_peak' => get_option('woom_last_alert_peak', $defaults['last_alert_peak']),
+            'last_alert_offpeak' => get_option('woom_last_alert_offpeak', $defaults['last_alert_offpeak']),
+            'daily_alert_count' => intval(get_option('woom_daily_alert_count', $defaults['daily_alert_count'])),
+            'daily_alert_date' => get_option('woom_daily_alert_date', $defaults['daily_alert_date']),
+            'enable_system_alerts' => get_option('woom_enable_system_alerts', $defaults['enable_system_alerts']),
+            'webhook_url' => get_option('woom_webhook_url', $defaults['webhook_url']),
+            'query_cache_duration' => intval(get_option('woom_query_cache_duration', $defaults['query_cache_duration']))
         ];
     }
     
@@ -164,15 +196,22 @@ class WooCommerce_Order_Monitor {
     
     /**
      * Plugin activation
+     *
+     * ⚠️  CRITICAL: This method is DEPRECATED and should be replaced with the new Installer class.
+     * ⚠️  It now uses SettingsDefaults to ensure consistency until migration is complete.
+     * ⚠️  DO NOT modify default values here - use SettingsDefaults instead.
      */
     public function activate() {
-        // Set default options - Bloomz production-safe defaults
-        add_option('woom_enabled', 'yes'); // Default to enabled since user intent is clear
-        add_option('woom_peak_start', '10:00'); // Bloomz business hours
-        add_option('woom_peak_end', '20:00'); // 8 PM end for Bloomz
-        add_option('woom_threshold_peak', 3); // Conservative production setting
-        add_option('woom_threshold_offpeak', 1); // Very conservative
-        add_option('woom_notification_emails', get_option('admin_email'));
+        // Import the centralized defaults class
+        require_once plugin_dir_path(__FILE__) . 'src/Core/SettingsDefaults.php';
+
+        // Get defaults from centralized configuration
+        $defaults = \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getActivationDefaults();
+
+        // Set default options using centralized defaults
+        foreach ($defaults as $option_name => $default_value) {
+            add_option($option_name, $default_value);
+        }
         
         // Production safety defaults
         add_option('woom_alert_cooldown', 7200); // 2 hours between alerts
@@ -1600,11 +1639,11 @@ class WooCommerce_Order_Monitor {
                 'type' => 'text',
                 'desc' => __('Start time for peak hours (24-hour format, e.g., 09:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_start',
-                'default' => '09:00',
+                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('peak_start'),
                 'css' => 'width: 100px;',
                 'custom_attributes' => [
                     'pattern' => '[0-9]{2}:[0-9]{2}',
-                    'placeholder' => '09:00'
+                    'placeholder' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('peak_start')
                 ]
             ],
             'peak_end' => [
@@ -1612,11 +1651,11 @@ class WooCommerce_Order_Monitor {
                 'type' => 'text',
                 'desc' => __('End time for peak hours (24-hour format, e.g., 18:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_end',
-                'default' => '18:00',
+                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('peak_end'),
                 'css' => 'width: 100px;',
                 'custom_attributes' => [
                     'pattern' => '[0-9]{2}:[0-9]{2}',
-                    'placeholder' => '18:00'
+                    'placeholder' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('peak_end')
                 ]
             ],
             'threshold_peak' => [
@@ -1624,7 +1663,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Minimum orders expected in 15 minutes during peak hours', 'woo-order-monitor'),
                 'id' => 'woom_threshold_peak',
-                'default' => '10',
+                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('threshold_peak'),
                 'custom_attributes' => [
                     'min' => '0',
                     'step' => '1'
@@ -1635,7 +1674,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Minimum orders expected in 15 minutes during off-peak hours', 'woo-order-monitor'),
                 'id' => 'woom_threshold_offpeak',
-                'default' => '2',
+                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('threshold_offpeak'),
                 'custom_attributes' => [
                     'min' => '0',
                     'step' => '1'
@@ -2617,15 +2656,18 @@ if (defined('WP_CLI') && WP_CLI) {
          * * wp woom config
          */
         public function config() {
+            // Get defaults from centralized configuration
+            $defaults = \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getRuntimeDefaults();
+
             $settings = [
-                'enabled' => get_option('woom_enabled', 'no'),
-                'peak_start' => get_option('woom_peak_start', '09:00'),
-                'peak_end' => get_option('woom_peak_end', '21:00'),
-                'threshold_peak' => get_option('woom_threshold_peak', 10),
-                'threshold_offpeak' => get_option('woom_threshold_offpeak', 2),
-                'notification_emails' => get_option('woom_notification_emails', ''),
-                'last_check' => get_option('woom_last_check', 0),
-                'last_alert' => get_option('woom_last_alert', 0)
+                'enabled' => get_option('woom_enabled', $defaults['enabled']),
+                'peak_start' => get_option('woom_peak_start', $defaults['peak_start']),
+                'peak_end' => get_option('woom_peak_end', $defaults['peak_end']),
+                'threshold_peak' => get_option('woom_threshold_peak', $defaults['threshold_peak']),
+                'threshold_offpeak' => get_option('woom_threshold_offpeak', $defaults['threshold_offpeak']),
+                'notification_emails' => get_option('woom_notification_emails', $defaults['notification_emails']),
+                'last_check' => get_option('woom_last_check', $defaults['last_check']),
+                'last_alert' => get_option('woom_last_alert', $defaults['last_alert'])
             ];
             
             WP_CLI::line('WooCommerce Order Monitor Configuration:');

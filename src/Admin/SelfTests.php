@@ -12,6 +12,7 @@
 namespace KissPlugins\WooOrderMonitor\Admin;
 
 use KissPlugins\WooOrderMonitor\Core\Settings;
+use KissPlugins\WooOrderMonitor\Core\SettingsDefaults;
 
 /**
  * Self Tests Class
@@ -30,7 +31,7 @@ class SelfTests {
     
     /**
      * Available tests configuration
-     * 
+     *
      * @var array
      */
     private $available_tests = [
@@ -53,6 +54,11 @@ class SelfTests {
             'name' => 'Cron Scheduling Test',
             'description' => 'Checks cron job registration and scheduling functionality',
             'icon' => 'clock'
+        ],
+        'settings_centralization' => [
+            'name' => 'Settings Centralization Test',
+            'description' => 'Validates that all default values use SettingsDefaults (prevents configuration drift)',
+            'icon' => 'admin-settings'
         ]
     ];
     
@@ -417,6 +423,10 @@ class SelfTests {
 
                     case 'cron_scheduling':
                         $results[$test_key] = $this->testCronScheduling();
+                        break;
+
+                    case 'settings_centralization':
+                        $results[$test_key] = $this->testSettingsCentralization();
                         break;
 
                     default:
@@ -855,6 +865,54 @@ class SelfTests {
     }
 
     /**
+     * Test settings centralization
+     *
+     * Validates that all default values are properly centralized in SettingsDefaults
+     * and no hardcoded defaults exist elsewhere in the codebase.
+     *
+     * @return array Test result
+     */
+    public function testSettingsCentralization(): array {
+        try {
+            // Run the centralization validation from SettingsDefaults
+            $validation_result = SettingsDefaults::validateCentralization();
+
+            // Convert the validation result to our test format
+            $status = $validation_result['status'] === 'pass' ? 'pass' : 'error';
+
+            $details = [
+                'validation_result' => $validation_result,
+                'centralized_defaults_count' => count(SettingsDefaults::getRuntimeDefaults()),
+                'validation_rules_count' => count(SettingsDefaults::getValidationRules()),
+                'recommendation' => $status === 'pass'
+                    ? 'Settings centralization is working correctly'
+                    : 'Fix hardcoded defaults by using SettingsDefaults::getDefault() calls'
+            ];
+
+            if ($status === 'error' && isset($validation_result['details']['issues'])) {
+                $details['issues_found'] = $validation_result['details']['issues'];
+                $details['fix_instructions'] = $validation_result['details']['fix_instructions'] ?? 'Replace hardcoded values with SettingsDefaults calls';
+            }
+
+            return [
+                'status' => $status,
+                'message' => $validation_result['message'],
+                'details' => $details
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => __('Settings centralization test failed', 'woo-order-monitor'),
+                'details' => [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]
+            ];
+        }
+    }
+
+    /**
      * Test cron execution capability
      *
      * @return bool True if cron can be executed
@@ -862,7 +920,7 @@ class SelfTests {
     private function testCronExecution(): bool {
         try {
             // Try to get cron array
-            $crons = _get_cron_array();
+            $crons = \_get_cron_array();
             return is_array($crons);
         } catch (\Exception $e) {
             return false;

@@ -1,107 +1,80 @@
 <?php
 /**
  * Settings Management Class
- * 
+ *
  * Handles all plugin settings including loading, validation,
  * caching, and default values.
- * 
+ *
+ * ⚠️  IMPORTANT: This class now uses SettingsDefaults for all default values.
+ * ⚠️  DO NOT define default values in this class - use SettingsDefaults instead.
+ *
  * @package KissPlugins\WooOrderMonitor\Core
  * @since 1.5.0
+ * @updated 1.5.1 - Centralized defaults to prevent drift
  */
 
 namespace KissPlugins\WooOrderMonitor\Core;
 
 /**
  * Settings Management Class
- * 
+ *
  * Centralized settings management with validation, caching,
- * and type safety.
+ * and type safety. All default values are now sourced from
+ * SettingsDefaults to prevent configuration drift.
  */
 class Settings {
-    
+
     /**
      * Settings cache
-     * 
+     *
      * @var array
      */
     private $settings = [];
-    
+
     /**
      * Settings loaded flag
-     * 
+     *
      * @var bool
      */
     private $loaded = false;
-    
-    /**
-     * Default settings
-     * 
-     * @var array
-     */
-    private $defaults = [
-        'enabled' => 'yes',
-        'peak_start' => '09:00',
-        'peak_end' => '18:00',
-        'threshold_peak' => 10,
-        'threshold_offpeak' => 2,
-        'notification_emails' => '',
-        'last_check' => 0,
-        'last_alert' => 0
-    ];
-    
-    /**
-     * Setting validation rules
-     * 
-     * @var array
-     */
-    private $validation_rules = [
-        'enabled' => ['type' => 'string', 'values' => ['yes', 'no']],
-        'peak_start' => ['type' => 'time'],
-        'peak_end' => ['type' => 'time'],
-        'threshold_peak' => ['type' => 'int', 'min' => 0, 'max' => 1000],
-        'threshold_offpeak' => ['type' => 'int', 'min' => 0, 'max' => 1000],
-        'notification_emails' => ['type' => 'email_list'],
-        'last_check' => ['type' => 'int', 'min' => 0],
-        'last_alert' => ['type' => 'int', 'min' => 0]
-    ];
-    
+
     /**
      * Constructor
      */
     public function __construct() {
         // Settings will be loaded on demand
     }
-    
+
     /**
      * Load all settings from WordPress options
-     * 
+     *
+     * Uses SettingsDefaults for all default values to ensure consistency.
+     *
      * @return void
      */
     public function load(): void {
         if ($this->loaded) {
             return;
         }
-        
+
+        // Get defaults from centralized configuration
+        $defaults = SettingsDefaults::getRuntimeDefaults();
+
         // Load each setting with its default value
-        foreach ($this->defaults as $key => $default) {
+        foreach ($defaults as $key => $default) {
             $option_key = 'woom_' . $key;
             $value = get_option($option_key, $default);
-            
+
             // Apply validation
             $this->settings[$key] = $this->validateSetting($key, $value);
         }
-        
-        // Special handling for notification emails default
-        if (empty($this->settings['notification_emails'])) {
-            $this->settings['notification_emails'] = get_option('admin_email', '');
-        }
-        
+
         $this->loaded = true;
     }
     
     /**
      * Get a setting value
-     * 
+     *
      * @param string $key Setting key
      * @param mixed $default Default value if setting not found
      * @return mixed Setting value
@@ -110,8 +83,8 @@ class Settings {
         if (!$this->loaded) {
             $this->load();
         }
-        
-        return $this->settings[$key] ?? $default ?? $this->defaults[$key] ?? null;
+
+        return $this->settings[$key] ?? $default ?? SettingsDefaults::getDefault($key) ?? null;
     }
     
     /**
@@ -184,11 +157,13 @@ class Settings {
      *               - email_list: Validates comma-separated email addresses
      */
     private function validateSetting(string $key, $value) {
-        if (!isset($this->validation_rules[$key])) {
+        $validation_rules = SettingsDefaults::getValidationRules();
+
+        if (!isset($validation_rules[$key])) {
             return $value; // No validation rule, return as-is
         }
-        
-        $rule = $this->validation_rules[$key];
+
+        $rule = $validation_rules[$key];
         
         switch ($rule['type']) {
             case 'string':
@@ -258,35 +233,36 @@ class Settings {
     
     /**
      * Get default value for a setting
-     * 
+     *
      * @param string $key Setting key
      * @return mixed Default value
      */
     public function getDefault(string $key) {
-        return $this->defaults[$key] ?? null;
+        return SettingsDefaults::getDefault($key);
     }
-    
+
     /**
      * Reset a setting to its default value
-     * 
+     *
      * @param string $key Setting key
      * @return bool True if reset was successful
      */
     public function resetToDefault(string $key): bool {
-        if (!isset($this->defaults[$key])) {
+        $default = SettingsDefaults::getDefault($key);
+        if ($default === null) {
             return false;
         }
-        
-        return $this->set($key, $this->defaults[$key]);
+
+        return $this->set($key, $default);
     }
-    
+
     /**
      * Reset all settings to defaults
-     * 
+     *
      * @return bool True if all settings were reset successfully
      */
     public function resetAllToDefaults(): bool {
-        return $this->updateMultiple($this->defaults);
+        return $this->updateMultiple(SettingsDefaults::getRuntimeDefaults());
     }
     
     /**

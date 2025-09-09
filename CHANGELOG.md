@@ -1,5 +1,51 @@
 ## Changelog
 
+### Version 1.5.3
+September 09, 2025
+
+**🔧 CRITICAL: Settings Centralization & Configuration Drift Prevention**
+
+**🛡️ Settings Architecture Overhaul:**
+- **Centralized Settings Configuration** - All default values now managed in single source of truth
+  - New `SettingsDefaults` class centralizes ALL plugin default values
+  - Prevents configuration drift between UI forms, activation code, and runtime logic
+  - Eliminates conflicting default values that caused email alert discrepancies
+- **Settings Consistency Validation** - Self-test system to prevent future drift
+  - New self-test validates no hardcoded defaults exist in codebase
+  - Automated scanning for forbidden patterns and conflicting values
+  - Comprehensive validation of settings centralization compliance
+- **Enhanced Documentation & Safeguards** - Extensive comments to prevent regression
+  - Critical warning comments in all files that previously had hardcoded defaults
+  - Clear instructions on where and how to modify default values
+  - Safeguard documentation to prevent future configuration drift
+
+**🐛 Bug Fixes:**
+- **Fixed Email Alert Threshold Discrepancy** - Resolved issue where email alerts showed "Expected Threshold: 10" while UI showed "2 per 15 minute window"
+  - Root cause: Multiple conflicting default values scattered across codebase
+  - Solution: Centralized all defaults in `SettingsDefaults` class
+  - All UI forms, activation code, and runtime logic now use same source
+- **Improved Settings Loading** - All settings loading now uses centralized configuration
+  - Updated main plugin file to use `SettingsDefaults`
+  - Updated `Settings` class to use centralized defaults
+  - Updated `Installer` class to use centralized defaults
+  - Updated admin settings forms to use centralized defaults
+
+**🔧 Technical Improvements:**
+- **Code Architecture** - Better separation of concerns and maintainability
+  - Settings defaults separated from business logic
+  - Validation rules centralized with defaults
+  - Clear API for accessing default values across plugin
+- **Self-Test Enhancement** - Added settings centralization validation
+  - New test scans codebase for hardcoded defaults
+  - Validates all settings use centralized configuration
+  - Provides detailed reporting of any configuration drift
+
+**⚠️ Important Notes:**
+- This update resolves critical configuration inconsistencies
+- All default values are now managed in `src/Core/SettingsDefaults.php`
+- Future default value changes must be made ONLY in SettingsDefaults class
+- Self-tests will catch any attempts to add hardcoded defaults elsewhere
+
 ### Version 1.5.2
 September 08, 2025
 

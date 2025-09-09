@@ -12,6 +12,7 @@
 namespace KissPlugins\WooOrderMonitor\Admin;
 
 use KissPlugins\WooOrderMonitor\Core\Settings;
+use KissPlugins\WooOrderMonitor\Core\SettingsDefaults;
 
 /**
  * Settings Page Class
@@ -191,10 +192,16 @@ class SettingsPage {
     
     /**
      * Get settings fields configuration
-     * 
+     *
+     * ⚠️  IMPORTANT: Uses SettingsDefaults for all default values.
+     * ⚠️  DO NOT define default values here - use SettingsDefaults instead.
+     *
      * @return array Settings fields array
      */
     private function getSettingsFields(): array {
+        // Get defaults from centralized configuration
+        $defaults = SettingsDefaults::getUIDefaults();
+
         return [
             'section_title' => [
                 'name' => sprintf(__('WooCommerce Order Monitor Settings - v%s', 'woo-order-monitor'), WOOM_VERSION),
@@ -207,18 +214,18 @@ class SettingsPage {
                 'type' => 'checkbox',
                 'desc' => __('Enable order volume monitoring', 'woo-order-monitor'),
                 'id' => 'woom_enabled',
-                'default' => 'yes'
+                'default' => $defaults['enabled']
             ],
             'peak_start' => [
                 'name' => __('Peak Hours Start', 'woo-order-monitor'),
                 'type' => 'text',
                 'desc' => __('Start time for peak hours (24-hour format, e.g., 09:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_start',
-                'default' => '09:00',
+                'default' => $defaults['peak_start'],
                 'css' => 'width: 100px;',
                 'custom_attributes' => [
                     'pattern' => '^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
-                    'placeholder' => '09:00'
+                    'placeholder' => $defaults['peak_start']
                 ]
             ],
             'peak_end' => [
@@ -226,11 +233,11 @@ class SettingsPage {
                 'type' => 'text',
                 'desc' => __('End time for peak hours (24-hour format, e.g., 17:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_end',
-                'default' => '17:00',
+                'default' => $defaults['peak_end'],
                 'css' => 'width: 100px;',
                 'custom_attributes' => [
                     'pattern' => '^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
-                    'placeholder' => '17:00'
+                    'placeholder' => $defaults['peak_end']
                 ]
             ],
             'peak_threshold' => [
@@ -238,7 +245,7 @@ class SettingsPage {
                 'type' => 'number',
                 'desc' => __('Minimum number of orders expected during peak hours (15-minute period)', 'woo-order-monitor'),
                 'id' => 'woom_peak_threshold',
-                'default' => 3,
+                'default' => $defaults['threshold_peak'],
                 'custom_attributes' => [
                     'min' => 0,
                     'step' => 1
@@ -249,7 +256,7 @@ class SettingsPage {
                 'type' => 'number',
                 'desc' => __('Minimum number of orders expected during off-peak hours (15-minute period)', 'woo-order-monitor'),
                 'id' => 'woom_off_peak_threshold',
-                'default' => 1,
+                'default' => $defaults['threshold_offpeak'],
                 'custom_attributes' => [
                     'min' => 0,
                     'step' => 1
@@ -260,7 +267,7 @@ class SettingsPage {
                 'type' => 'textarea',
                 'desc' => __('Email addresses to notify when order volume is below threshold (comma-separated)', 'woo-order-monitor'),
                 'id' => 'woom_notification_emails',
-                'default' => get_option('admin_email'),
+                'default' => $defaults['notification_emails'],
                 'css' => 'width: 400px; height: 100px;'
             ],
             'section_end' => [

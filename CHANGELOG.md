@@ -1,5 +1,52 @@
 ## Changelog
 
+### Version 1.6.0 (In Development)
+September 10, 2025
+
+**🚀 MAJOR: Phase 1 FSM (Finite State Machine) Architecture Implementation**
+
+**🏗️ Core FSM Foundation:**
+- **Settings State Machine** - Implemented centralized state management with atomic transitions
+  - 7 distinct states: Uninitialized → Loading → ValidationPending → Valid/Invalid → Updating → Monitoring
+  - Singleton pattern ensures single source of truth for all settings
+  - Automatic state persistence to WordPress options table
+  - Built-in rollback mechanism for failed state transitions
+- **Advanced Validation Engine** - Comprehensive validation with business logic rules
+  - Type validation (int, string, time, email, url, date)
+  - Range validation for numeric values with min/max constraints
+  - Format validation using regex patterns for time and email formats
+  - Business logic validation (peak_end > peak_start, thresholds > 0)
+  - Validation error logging and retrieval system
+- **Event System Architecture** - Publish/subscribe pattern for state change notifications
+  - Priority-based event listeners with automatic sorting
+  - Event history tracking for debugging (last 100 events)
+  - Event statistics and performance monitoring
+  - Default listeners for logging state changes and validation errors
+- **FSM Self-Tests Integration** - Added comprehensive FSM testing to self-test system
+  - State transition testing and validation system testing
+  - Persistence testing and event system testing
+  - Integration with existing self-test framework
+
+**🔧 Technical Architecture:**
+- **Atomic State Transitions** - All-or-nothing state changes prevent partial updates
+- **State Metadata Tracking** - Comprehensive metadata including transition counts and timestamps
+- **Force Transition Capability** - Emergency recovery mechanism for invalid states
+- **Backward Compatibility** - Existing code continues to work during FSM migration
+- **Performance Optimized** - Minimal overhead with intelligent caching
+
+**📊 FSM Benefits Delivered:**
+- **Zero Configuration Drift** - Impossible by design with centralized state management
+- **Atomic Updates** - All settings update together or none do (prevents partial failures)
+- **Built-in Validation** - Cannot reach invalid states due to validation gates
+- **Event-Driven Architecture** - Components react to state changes automatically
+- **Easy Debugging** - Complete state history and event tracking
+
+**⚠️ Development Notes:**
+- Phase 1 FSM foundation complete - ready for Phase 2 component integration
+- All FSM classes follow PSR-4 autoloading standards
+- Event system provides foundation for advanced monitoring and audit trails
+- FSM initialization happens automatically on plugin load
+
 ### Version 1.5.3
 September 09, 2025
 

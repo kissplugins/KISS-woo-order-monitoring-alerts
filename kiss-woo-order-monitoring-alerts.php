@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.5.3
+ * Version: 1.6.0-dev
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -40,7 +40,7 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.5.3');
+define('WOOM_VERSION', '1.6.0-dev');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -145,6 +145,26 @@ class WooCommerce_Order_Monitor {
     public function init() {
         $this->load_settings();
         $this->ensure_cron_scheduled();
+        $this->init_fsm();
+    }
+
+    /**
+     * Initialize FSM (Finite State Machine)
+     */
+    private function init_fsm() {
+        // Load FSM classes
+        require_once plugin_dir_path(__FILE__) . 'src/Core/EventSystem.php';
+        require_once plugin_dir_path(__FILE__) . 'src/Core/SettingsStateMachine.php';
+
+        // Register default event listeners
+        \KissPlugins\WooOrderMonitor\Core\EventSystem::registerDefaultListeners();
+
+        // Initialize the FSM
+        $fsm = \KissPlugins\WooOrderMonitor\Core\SettingsStateMachine::getInstance();
+        $fsm->initialize();
+
+        // Log FSM initialization
+        error_log("[WOOM] FSM initialized in state: " . $fsm->getCurrentState());
     }
     
     /**

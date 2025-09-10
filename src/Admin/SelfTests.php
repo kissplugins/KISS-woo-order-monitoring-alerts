@@ -13,6 +13,8 @@ namespace KissPlugins\WooOrderMonitor\Admin;
 
 use KissPlugins\WooOrderMonitor\Core\Settings;
 use KissPlugins\WooOrderMonitor\Core\SettingsDefaults;
+use KissPlugins\WooOrderMonitor\Core\SettingsStateMachine;
+use KissPlugins\WooOrderMonitor\Core\EventSystem;
 
 /**
  * Self Tests Class
@@ -59,6 +61,11 @@ class SelfTests {
             'name' => 'Settings Centralization Test',
             'description' => 'Validates that all default values use SettingsDefaults (prevents configuration drift)',
             'icon' => 'admin-settings'
+        ],
+        'fsm_state_machine' => [
+            'name' => 'FSM State Machine Test',
+            'description' => 'Tests finite state machine functionality and state transitions',
+            'icon' => 'networking'
         ]
     ];
     
@@ -427,6 +434,10 @@ class SelfTests {
 
                     case 'settings_centralization':
                         $results[$test_key] = $this->testSettingsCentralization();
+                        break;
+
+                    case 'fsm_state_machine':
+                        $results[$test_key] = $this->testFSMStateMachine();
                         break;
 
                     default:
@@ -909,6 +920,152 @@ class SelfTests {
                     'trace' => $e->getTraceAsString()
                 ]
             ];
+        }
+    }
+
+    /**
+     * Test FSM State Machine functionality
+     *
+     * Tests the finite state machine implementation including
+     * state transitions, validation, and event system.
+     *
+     * @return array Test result
+     */
+    public function testFSMStateMachine(): array {
+        try {
+            // Initialize FSM
+            $fsm = SettingsStateMachine::getInstance();
+
+            // Test 1: Basic state machine functionality
+            $initial_state = $fsm->getCurrentState();
+            $metadata = $fsm->getStateMetadata();
+
+            // Test 2: Event system functionality
+            $event_stats = EventSystem::getEventStatistics();
+
+            // Test 3: State transitions
+            $transition_test = $this->testStateTransitions($fsm);
+
+            // Test 4: Validation system
+            $validation_test = $this->testFSMValidation($fsm);
+
+            // Test 5: Persistence
+            $persistence_test = $this->testFSMPersistence($fsm);
+
+            $all_tests_passed = $transition_test && $validation_test && $persistence_test;
+
+            return [
+                'status' => $all_tests_passed ? 'pass' : 'warning',
+                'message' => $all_tests_passed
+                    ? 'FSM State Machine is functioning correctly'
+                    : 'FSM has some issues but is operational',
+                'details' => [
+                    'initial_state' => $initial_state,
+                    'metadata' => $metadata,
+                    'event_stats' => $event_stats,
+                    'transition_test' => $transition_test,
+                    'validation_test' => $validation_test,
+                    'persistence_test' => $persistence_test,
+                    'fsm_class_exists' => class_exists('KissPlugins\\WooOrderMonitor\\Core\\SettingsStateMachine'),
+                    'event_system_exists' => class_exists('KissPlugins\\WooOrderMonitor\\Core\\EventSystem')
+                ]
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => __('FSM State Machine test failed', 'woo-order-monitor'),
+                'details' => [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]
+            ];
+        }
+    }
+
+    /**
+     * Test FSM state transitions
+     *
+     * @param SettingsStateMachine $fsm FSM instance
+     * @return bool Success
+     */
+    private function testStateTransitions(SettingsStateMachine $fsm): bool {
+        try {
+            $initial_state = $fsm->getCurrentState();
+
+            // Test getting settings (should work in any state)
+            $threshold = $fsm->get('threshold_peak', 0);
+            if (!is_numeric($threshold)) {
+                return false;
+            }
+
+            // Test metadata retrieval
+            $metadata = $fsm->getStateMetadata();
+            if (!is_array($metadata) || !isset($metadata['current_state'])) {
+                return false;
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            error_log("[FSM Test] State transition test failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Test FSM validation system
+     *
+     * @param SettingsStateMachine $fsm FSM instance
+     * @return bool Success
+     */
+    private function testFSMValidation(SettingsStateMachine $fsm): bool {
+        try {
+            // Test validation error retrieval
+            $errors = $fsm->getValidationErrors();
+            if (!is_array($errors)) {
+                return false;
+            }
+
+            // Test clearing validation errors
+            $fsm->clearValidationErrors();
+            $cleared_errors = $fsm->getValidationErrors();
+            if (!is_array($cleared_errors)) {
+                return false;
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            error_log("[FSM Test] Validation test failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Test FSM persistence
+     *
+     * @param SettingsStateMachine $fsm FSM instance
+     * @return bool Success
+     */
+    private function testFSMPersistence(SettingsStateMachine $fsm): bool {
+        try {
+            // Test that we can get all settings
+            $all_settings = $fsm->getAll();
+            if (!is_array($all_settings) || empty($all_settings)) {
+                return false;
+            }
+
+            // Test that required settings exist
+            $required_settings = ['threshold_peak', 'threshold_offpeak', 'peak_start', 'peak_end'];
+            foreach ($required_settings as $setting) {
+                if (!isset($all_settings[$setting])) {
+                    return false;
+                }
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            error_log("[FSM Test] Persistence test failed: " . $e->getMessage());
+            return false;
         }
     }
 

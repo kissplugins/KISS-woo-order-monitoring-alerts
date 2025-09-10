@@ -59,10 +59,17 @@ class SettingsStateMachine {
     
     /**
      * Settings backup (for rollback)
-     * 
+     *
      * @var array
      */
     private $settings_backup = [];
+
+    /**
+     * Validation errors
+     *
+     * @var array
+     */
+    private $validation_errors = [];
     
     /**
      * State transition rules
@@ -464,6 +471,38 @@ class SettingsStateMachine {
         return $this->settings_data;
     }
     
+    /**
+     * Update multiple settings atomically
+     *
+     * @param array $new_settings Settings to update
+     * @return bool Success
+     */
+    public function updateSettings(array $new_settings): bool {
+        try {
+            // Transition to updating state
+            if (!$this->transitionTo('updating', $new_settings)) {
+                return false;
+            }
+
+            // Update each setting in the settings data
+            foreach ($new_settings as $key => $value) {
+                $this->settings_data[$key] = $value;
+
+                // Also update WordPress option for backward compatibility
+                $option_key = 'woom_' . $key;
+                update_option($option_key, $value);
+            }
+
+            // Transition to monitoring state if all successful
+            return $this->transitionTo('monitoring');
+
+        } catch (\Exception $e) {
+            error_log("[FSM] updateSettings failed: " . $e->getMessage());
+            $this->validation_errors[] = "Update failed: " . $e->getMessage();
+            return false;
+        }
+    }
+
     /**
      * Add event listener (delegates to EventSystem)
      *

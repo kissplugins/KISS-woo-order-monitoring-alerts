@@ -205,9 +205,29 @@ class WooCommerce_Order_Monitor {
     
     /**
      * Ensure cron job is scheduled
+     *
+     * ✅ MIGRATED TO FSM: Now uses FSM to determine if monitoring should be enabled
+     * ✅ Respects FSM monitoring state for cron scheduling
      */
     private function ensure_cron_scheduled() {
-        if ('yes' === $this->settings['enabled'] && !wp_next_scheduled('woom_check_orders')) {
+        // Get FSM instance
+        $fsm = \KissPlugins\WooOrderMonitor\Core\SettingsStateMachine::getInstance();
+
+        // Check if FSM is in monitoring state and enabled
+        $fsm_enabled = $fsm->get('enabled', 'yes') === 'yes';
+        $fsm_monitoring = $fsm->getCurrentState() === 'monitoring';
+        $should_schedule = $fsm_enabled && $fsm_monitoring;
+
+        if ($should_schedule && !wp_next_scheduled('woom_check_orders')) {
+            wp_schedule_event(time(), 'woom_15min', 'woom_check_orders');
+            error_log('[WOOM] Cron scheduled - FSM state: ' . $fsm->getCurrentState());
+        } elseif (!$should_schedule && wp_next_scheduled('woom_check_orders')) {
+            wp_clear_scheduled_hook('woom_check_orders');
+            error_log('[WOOM] Cron cleared - FSM state: ' . $fsm->getCurrentState() . ', enabled: ' . ($fsm_enabled ? 'yes' : 'no'));
+        }
+
+        // Also maintain backward compatibility
+        if ('yes' === $this->settings['enabled'] && !wp_next_scheduled('woom_check_orders') && !$should_schedule) {
             wp_schedule_event(time(), 'woom_15min', 'woom_check_orders');
         } elseif ('yes' !== $this->settings['enabled'] && wp_next_scheduled('woom_check_orders')) {
             wp_clear_scheduled_hook('woom_check_orders');
@@ -274,11 +294,23 @@ class WooCommerce_Order_Monitor {
     
     /**
      * Check order threshold
+     *
+     * ✅ MIGRATED TO FSM: Now uses FSM for all threshold and configuration values
+     * ✅ This ensures email alerts use the same values as the UI
      */
     public function check_order_threshold() {
         try {
-            // Update last check time
-            update_option('woom_last_check', current_time('timestamp'));
+            // Get FSM instance
+            $fsm = \KissPlugins\WooOrderMonitor\Core\SettingsStateMachine::getInstance();
+
+            // Check if FSM is in monitoring state
+            if ($fsm->getCurrentState() !== 'monitoring') {
+                error_log('[WOOM] Skipping threshold check - FSM not in monitoring state: ' . $fsm->getCurrentState());
+                return;
+            }
+
+            // Update last check time via FSM
+            $fsm->updateSettings(['last_check' => current_time('timestamp')]);
 
             // Get order count for last 15 minutes
             $order_count = $this->get_recent_order_count();
@@ -289,11 +321,11 @@ class WooCommerce_Order_Monitor {
                 return;
             }
 
-            // Determine if we're in peak hours
-            $is_peak = $this->is_peak_hours();
+            // Determine if we're in peak hours using FSM settings
+            $is_peak = $this->is_peak_hours_fsm($fsm);
 
-            // Get appropriate threshold
-            $threshold = $is_peak ? $this->settings['threshold_peak'] : $this->settings['threshold_offpeak'];
+            // Get appropriate threshold from FSM
+            $threshold = $is_peak ? $fsm->get('threshold_peak', 10) : $fsm->get('threshold_offpeak', 2);
 
             // Validate threshold values
             if (!is_numeric($threshold) || $threshold < 0) {
@@ -454,13 +486,35 @@ class WooCommerce_Order_Monitor {
     }
     
     /**
-     * Check if current time is in peak hours
+     * Check if current time is in peak hours (FSM version)
+     *
+     * ✅ MIGRATED TO FSM: Uses FSM for peak hour configuration
+     */
+    private function is_peak_hours_fsm($fsm) {
+        $current_time = current_time('H:i');
+        $peak_start = $fsm->get('peak_start', '09:00');
+        $peak_end = $fsm->get('peak_end', '18:00');
+
+        // Handle cases where peak hours span midnight
+        if ($peak_end < $peak_start) {
+            // Peak hours span midnight
+            return ($current_time >= $peak_start || $current_time < $peak_end);
+        } else {
+            // Normal peak hours
+            return ($current_time >= $peak_start && $current_time < $peak_end);
+        }
+    }
+
+    /**
+     * Check if current time is in peak hours (legacy version for backward compatibility)
+     *
+     * ⚠️ DEPRECATED: Use is_peak_hours_fsm() instead
      */
     private function is_peak_hours() {
         $current_time = current_time('H:i');
         $peak_start = $this->settings['peak_start'];
         $peak_end = $this->settings['peak_end'];
-        
+
         // Handle cases where peak hours span midnight
         if ($peak_end < $peak_start) {
             // Peak hours span midnight
@@ -473,14 +527,19 @@ class WooCommerce_Order_Monitor {
     
     /**
      * Send alert notification
+     *
+     * ✅ MIGRATED TO FSM: Now uses FSM for email configuration and state updates
      */
     private function send_alert($order_count, $threshold, $is_peak) {
         try {
-            // Update last alert time
-            update_option('woom_last_alert', current_time('timestamp'));
+            // Get FSM instance
+            $fsm = \KissPlugins\WooOrderMonitor\Core\SettingsStateMachine::getInstance();
 
-            // Prepare email data
-            $to = $this->get_notification_emails();
+            // Update last alert time via FSM
+            $fsm->updateSettings(['last_alert' => current_time('timestamp')]);
+
+            // Prepare email data from FSM
+            $to = $this->get_notification_emails_fsm($fsm);
 
             // Validate email addresses
             if (empty($to) || !is_array($to)) {
@@ -609,22 +668,46 @@ class WooCommerce_Order_Monitor {
     }
     
     /**
-     * Get notification email addresses
+     * Get notification email addresses (FSM version)
+     *
+     * ✅ MIGRATED TO FSM: Uses FSM for email configuration
      */
-    private function get_notification_emails() {
-        $emails = $this->settings['notification_emails'];
-        
+    private function get_notification_emails_fsm($fsm) {
+        $emails = $fsm->get('notification_emails', get_option('admin_email'));
+
         // Convert comma-separated string to array
         if (is_string($emails)) {
             $emails = array_map('trim', explode(',', $emails));
             $emails = array_filter($emails, 'is_email');
         }
-        
+
         // Fallback to admin email if no valid emails
         if (empty($emails)) {
             $emails = [get_option('admin_email')];
         }
-        
+
+        return $emails;
+    }
+
+    /**
+     * Get notification email addresses (legacy version for backward compatibility)
+     *
+     * ⚠️ DEPRECATED: Use get_notification_emails_fsm() instead
+     */
+    private function get_notification_emails() {
+        $emails = $this->settings['notification_emails'];
+
+        // Convert comma-separated string to array
+        if (is_string($emails)) {
+            $emails = array_map('trim', explode(',', $emails));
+            $emails = array_filter($emails, 'is_email');
+        }
+
+        // Fallback to admin email if no valid emails
+        if (empty($emails)) {
+            $emails = [get_option('admin_email')];
+        }
+
         return $emails;
     }
     
@@ -1638,8 +1721,14 @@ class WooCommerce_Order_Monitor {
 
     /**
      * Get settings fields
+     *
+     * ✅ MIGRATED TO FSM: All default values now come from FSM state machine
+     * ✅ This ensures UI forms always match the current FSM state
      */
     private function get_settings() {
+        // Get FSM instance for current state and defaults
+        $fsm = \KissPlugins\WooOrderMonitor\Core\SettingsStateMachine::getInstance();
+
         $settings = [
             'section_title' => [
                 'name' => sprintf(__('WooCommerce Order Monitor Settings - v%s', 'woo-order-monitor'), WOOM_VERSION),
@@ -1652,14 +1741,14 @@ class WooCommerce_Order_Monitor {
                 'type' => 'checkbox',
                 'desc' => __('Enable order volume monitoring', 'woo-order-monitor'),
                 'id' => 'woom_enabled',
-                'default' => 'yes'
+                'default' => $fsm->get('enabled', 'yes')
             ],
             'peak_start' => [
                 'name' => __('Peak Hours Start', 'woo-order-monitor'),
                 'type' => 'text',
                 'desc' => __('Start time for peak hours (24-hour format, e.g., 09:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_start',
-                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('peak_start'),
+                'default' => $fsm->get('peak_start', '09:00'),
                 'css' => 'width: 100px;',
                 'custom_attributes' => [
                     'pattern' => '[0-9]{2}:[0-9]{2}',
@@ -1671,7 +1760,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'text',
                 'desc' => __('End time for peak hours (24-hour format, e.g., 18:00)', 'woo-order-monitor'),
                 'id' => 'woom_peak_end',
-                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('peak_end'),
+                'default' => $fsm->get('peak_end', '18:00'),
                 'css' => 'width: 100px;',
                 'custom_attributes' => [
                     'pattern' => '[0-9]{2}:[0-9]{2}',
@@ -1683,7 +1772,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Minimum orders expected in 15 minutes during peak hours', 'woo-order-monitor'),
                 'id' => 'woom_threshold_peak',
-                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('threshold_peak'),
+                'default' => $fsm->get('threshold_peak', 10),
                 'custom_attributes' => [
                     'min' => '0',
                     'step' => '1'
@@ -1694,7 +1783,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Minimum orders expected in 15 minutes during off-peak hours', 'woo-order-monitor'),
                 'id' => 'woom_threshold_offpeak',
-                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('threshold_offpeak'),
+                'default' => $fsm->get('threshold_offpeak', 2),
                 'custom_attributes' => [
                     'min' => '0',
                     'step' => '1'
@@ -1705,7 +1794,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'textarea',
                 'desc' => __('Comma-separated email addresses to receive alerts', 'woo-order-monitor'),
                 'id' => 'woom_notification_emails',
-                'default' => get_option('admin_email'),
+                'default' => $fsm->get('notification_emails', get_option('admin_email')),
                 'css' => 'width: 400px; height: 75px;'
             ],
 
@@ -1720,7 +1809,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Minimum time between alerts for same threshold type (peak/off-peak)', 'woo-order-monitor'),
                 'id' => 'woom_alert_cooldown_hours',
-                'default' => '2',
+                'default' => $fsm->get('alert_cooldown', 2),
                 'custom_attributes' => [
                     'min' => '0.5',
                     'max' => '24',
@@ -1732,7 +1821,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Maximum number of alerts to send per day (prevents email spam)', 'woo-order-monitor'),
                 'id' => 'woom_max_daily_alerts',
-                'default' => '6',
+                'default' => $fsm->get('max_daily_alerts', 6),
                 'custom_attributes' => [
                     'min' => '1',
                     'max' => '50',
@@ -1744,7 +1833,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'url',
                 'desc' => __('Optional webhook URL for backup notifications (Slack, Discord, etc.)', 'woo-order-monitor'),
                 'id' => 'woom_webhook_url',
-                'default' => '',
+                'default' => $fsm->get('webhook_url', ''),
                 'css' => 'width: 400px;'
             ],
             'enable_system_alerts' => [
@@ -1752,7 +1841,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'checkbox',
                 'desc' => __('Send alerts when the monitoring system itself fails (recommended)', 'woo-order-monitor'),
                 'id' => 'woom_enable_system_alerts',
-                'default' => 'yes'
+                'default' => $fsm->get('enable_system_alerts', 'yes')
             ],
 
             'section_end' => [
@@ -1766,24 +1855,67 @@ class WooCommerce_Order_Monitor {
     
     /**
      * Update settings
+     *
+     * ✅ MIGRATED TO FSM: Settings updates now go through FSM state machine
+     * ✅ This ensures atomic updates and validation through FSM
      */
     public function update_settings() {
         try {
+            // Get FSM instance
+            $fsm = \KissPlugins\WooOrderMonitor\Core\SettingsStateMachine::getInstance();
+
+            // Prepare settings data from POST
+            $new_settings = [];
+
             // Handle cooldown hours to seconds conversion
             if (isset($_POST['woom_alert_cooldown_hours'])) {
                 $hours = floatval($_POST['woom_alert_cooldown_hours']);
-                $seconds = intval($hours * 3600);
-                update_option('woom_alert_cooldown', $seconds);
+                $new_settings['alert_cooldown'] = intval($hours * 3600);
+                // Also update the old way for backward compatibility
+                update_option('woom_alert_cooldown', intval($hours * 3600));
             }
-            
-            // Validate and sanitize settings before saving
-            $this->validate_and_sanitize_settings();
 
-            woocommerce_update_options($this->get_settings());
+            // Map form fields to FSM settings
+            $field_mapping = [
+                'woom_enabled' => 'enabled',
+                'woom_peak_start' => 'peak_start',
+                'woom_peak_end' => 'peak_end',
+                'woom_threshold_peak' => 'threshold_peak',
+                'woom_threshold_offpeak' => 'threshold_offpeak',
+                'woom_notification_emails' => 'notification_emails',
+                'woom_max_daily_alerts' => 'max_daily_alerts',
+                'woom_webhook_url' => 'webhook_url',
+                'woom_enable_system_alerts' => 'enable_system_alerts'
+            ];
 
-            // Reload settings and update cron
-            $this->load_settings();
-            $this->ensure_cron_scheduled();
+            foreach ($field_mapping as $form_field => $fsm_key) {
+                if (isset($_POST[$form_field])) {
+                    $new_settings[$fsm_key] = $_POST[$form_field];
+                }
+            }
+
+            // Update settings through FSM (atomic transaction)
+            $success = $fsm->updateSettings($new_settings);
+
+            if ($success) {
+                // Also update WooCommerce options for backward compatibility
+                $this->validate_and_sanitize_settings();
+                woocommerce_update_options($this->get_settings());
+
+                // Reload settings and update cron
+                $this->load_settings();
+                $this->ensure_cron_scheduled();
+
+                // Log FSM state after update
+                error_log('[WOOM] Settings updated via FSM. Current state: ' . $fsm->getCurrentState());
+
+            } else {
+                // Get validation errors from FSM
+                $errors = $fsm->getValidationErrors();
+                $error_message = !empty($errors) ? implode(', ', $errors) : 'Unknown validation error';
+
+                throw new \Exception('FSM validation failed: ' . $error_message);
+            }
 
         } catch (Exception $e) {
             error_log('[WooCommerce Order Monitor] Exception in update_settings: ' . $e->getMessage());
@@ -1958,6 +2090,8 @@ class WooCommerce_Order_Monitor {
 
     /**
      * Handle manual check AJAX request
+     *
+     * ✅ MIGRATED TO FSM: Now uses FSM for monitoring status and threshold values
      */
     public function handle_manual_check() {
         try {
@@ -1973,25 +2107,29 @@ class WooCommerce_Order_Monitor {
                 return;
             }
 
-            // Get monitoring status
-            if ($this->settings['enabled'] !== 'yes') {
-                wp_send_json_error('Monitoring is disabled. Please enable monitoring first.');
+            // Get FSM instance and check monitoring status
+            $fsm = \KissPlugins\WooOrderMonitor\Core\SettingsStateMachine::getInstance();
+            $fsm_enabled = $fsm->get('enabled', 'yes') === 'yes';
+            $fsm_state = $fsm->getCurrentState();
+
+            if (!$fsm_enabled || $fsm_state !== 'monitoring') {
+                wp_send_json_error('Monitoring is disabled or FSM not in monitoring state. Current state: ' . $fsm_state);
                 return;
             }
 
             // Run the check manually
             $start_time = current_time('timestamp');
-            
+
             // Run the actual check
             $this->check_order_threshold();
-            
+
             $end_time = current_time('timestamp');
             $execution_time = $end_time - $start_time;
-            
-            // Get results for response
+
+            // Get results for response using FSM
             $order_count = $this->get_recent_order_count();
-            $is_peak = $this->is_peak_hours();
-            $threshold = $is_peak ? $this->settings['threshold_peak'] : $this->settings['threshold_offpeak'];
+            $is_peak = $this->is_peak_hours_fsm($fsm);
+            $threshold = $is_peak ? $fsm->get('threshold_peak', 10) : $fsm->get('threshold_offpeak', 2);
             
             // Prepare response data
             $response_data = [

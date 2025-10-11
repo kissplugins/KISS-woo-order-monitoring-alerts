@@ -220,16 +220,13 @@ class Installer {
     
     /**
      * Clear all caches
-     * 
+     *
      * @return void
      */
     private function clearCaches(): void {
         // Clear WordPress object cache
         wp_cache_flush();
-        
-        // Clear plugin-specific caches
-        wp_cache_delete_group('woo-order-monitor');
-        
+
         // Clear settings cache
         $this->settings->clearCache();
     }

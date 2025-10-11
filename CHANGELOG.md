@@ -1,5 +1,24 @@
 ## Changelog
 
+### Version 1.5.4
+October 10, 2025
+
+**🐛 CRITICAL BUG FIX: Plugin Deactivation Fatal Error**
+
+**Bug Fixed:**
+- **Fatal Error on Deactivation** - Fixed fatal error when deactivating plugin
+  - Error: `Call to undefined function wp_cache_delete_group()`
+  - Location: `src/Core/Installer.php:231`
+  - Root cause: Non-existent WordPress function `wp_cache_delete_group()` was being called
+  - Solution: Removed invalid function call from `clearCaches()` method
+  - Impact: Plugin can now be safely deactivated without fatal errors
+
+**Technical Details:**
+- The `wp_cache_delete_group()` function does not exist in WordPress core
+- WordPress provides `wp_cache_flush()` for clearing all caches
+- Removed the invalid function call while keeping `wp_cache_flush()` and settings cache clearing
+- Plugin deactivation now works correctly on all WordPress installations
+
 ### Version 1.5.3
 September 09, 2025
 

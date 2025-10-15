@@ -96,7 +96,7 @@ class SettingsPage {
         add_action('woocommerce_update_options_order_monitor', [$this, 'updateSettings']);
         
         // Plugin action links (Settings link on plugins page)
-        add_filter('plugin_action_links_' . WOOM_PLUGIN_BASENAME, [$this, 'addPluginActionLinks']);
+        //add_filter('plugin_action_links_' . WOOM_PLUGIN_BASENAME, [$this, 'addPluginActionLinks']);
         
         // Initialize AJAX handler hooks
         if ($this->ajax_handler) {

@@ -87,7 +87,9 @@ $woom_class_map = [
  */
 function woom_load_critical_classes() {
     global $woom_class_map;
-    
+    if (empty($woom_class_map) || !is_array($woom_class_map)) {
+        return;
+    }
     foreach ($woom_class_map as $class => $file) {
         $file_path = WOOM_PLUGIN_DIR . 'src' . DIRECTORY_SEPARATOR . $file;
         

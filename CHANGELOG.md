@@ -1,5 +1,11 @@
 ## Changelog
 
+### Version 1.5.5
+October 16, 2025
+
+**Added remote update feature**
+ - Added Plugin Update checker library.
+
 ### Version 1.5.4
 October 10, 2025
 

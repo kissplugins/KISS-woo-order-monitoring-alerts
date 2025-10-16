@@ -333,17 +333,32 @@ This is an automated alert from WooCommerce Order Monitor
 
 #### 🏗️ Core Components
 
-**1.1 Order History Tracking**
-- [ ] Add `woom_order_history` option to store recent orders
-- [ ] Create data structure: `[{id, status, time}, ...]`
-- [ ] Implement array size limiting (keep last N orders)
-- [ ] Add helper methods: `addOrderToHistory()`, `getOrderHistory()`, `pruneHistory()`
+**1.1 Order History Tracking** *(Updated: Transient Cache Approach)*
+
+**Design Decision**: After evaluating redundancy concerns, we chose a **transient cache approach** instead of permanent storage:
+- ❌ **Rejected**: Permanent `woom_order_history` option (redundant data, sync issues)
+- ❌ **Rejected**: Query WooCommerce on every order (performance impact)
+- ✅ **Chosen**: Transient cache with smart invalidation (best of both worlds)
+
+**Rationale**:
+- Avoids permanent data redundancy (WooCommerce already stores all order data)
+- Maintains fast array-based calculations (cached reads)
+- Self-healing (cache auto-expires and rebuilds from WooCommerce)
+- Always accurate (source of truth is WooCommerce orders)
+
+**Implementation**:
+- [ ] Create `getOrderHistory()` method - Returns cached transient or rebuilds from WooCommerce
+- [ ] Create `rebuildOrderHistory()` method - Queries last N orders from WooCommerce
+- [ ] Use transient cache (`woom_order_history_cache`) with 5-minute expiration
+- [ ] Invalidate cache on order status changes (auto-rebuilds on next read)
+- [ ] Data structure: `[{id, status, time}, ...]` (same as original plan, just cached)
 
 **1.2 WooCommerce Hook Integration**
 - [ ] Hook into `woocommerce_order_status_changed` action
+- [ ] Invalidate transient cache on order status changes (triggers rebuild on next read)
 - [ ] Detect order success (completed, processing) vs failure (failed, cancelled)
-- [ ] Automatically track orders in real-time (no cron needed for tracking)
 - [ ] Handle edge cases (refunds, manual status changes)
+- [ ] No permanent storage needed - cache rebuilds from WooCommerce automatically
 
 **1.3 Settings & Configuration**
 - [ ] Add RAD settings to `SettingsDefaults.php`:
@@ -520,8 +535,15 @@ This is an automated alert from WooCommerce Order Monitor
 
 ### Data Structure
 
+**Transient Cache Approach** *(Updated: October 16, 2025)*
+
 ```php
-// wp_options: woom_order_history
+// WordPress Transient: woom_order_history_cache
+// Auto-expires after 5 minutes, rebuilds from WooCommerce on demand
+// NO permanent redundant storage
+
+get_transient('woom_order_history_cache');
+// Returns:
 [
     [
         'id' => 12345,
@@ -532,7 +554,17 @@ This is an automated alert from WooCommerce Order Monitor
     ],
     // ... up to N orders (configurable)
 ]
+
+// Cache invalidated on order status changes
+// Rebuilds from WooCommerce orders on next read
 ```
+
+**Why Transient Cache?**
+- ✅ No permanent data redundancy
+- ✅ Fast array-based calculations (when cached)
+- ✅ Always accurate (rebuilds from WooCommerce)
+- ✅ Self-healing (auto-expires and rebuilds)
+- ✅ No sync issues or data drift
 
 ### Settings Schema
 
@@ -550,9 +582,19 @@ This is an automated alert from WooCommerce Order Monitor
 ### Hook Integration
 
 ```php
-// Phase 1: Basic tracking
+// Phase 1: Cache invalidation (transient approach)
 add_action('woocommerce_order_status_changed',
-    [$this, 'trackOrderInHistory'], 10, 4);
+    [$this, 'invalidateOrderCache'], 10, 4);
+
+/**
+ * Invalidate cache on order status change
+ * Cache rebuilds from WooCommerce on next read
+ */
+public function invalidateOrderCache($order_id, $old_status, $new_status, $order) {
+    delete_transient('woom_order_history_cache');
+    // Optionally: trigger immediate rebuild and failure rate check
+    $this->checkFailureRate();
+}
 
 // Phase 3: Enhanced tracking
 add_action('woocommerce_payment_complete',
@@ -601,6 +643,60 @@ add_action('woocommerce_order_status_failed',
 
 ## 📝 Implementation Notes
 
+### 🔄 Design Evolution: Storage Strategy
+
+**Date**: October 16, 2025
+
+**Original Plan**: Store order history in permanent `woom_order_history` option
+```php
+// Permanent storage in wp_options
+update_option('woom_order_history', $history_array);
+```
+
+**Concern Raised**:
+- This creates **permanent data redundancy** (WooCommerce already stores all order data)
+- Risk of data drift/sync issues
+- Unnecessary database bloat
+
+**Alternatives Evaluated**:
+
+1. **Query WooCommerce Every Time** ❌
+   - Pro: No redundancy, always accurate
+   - Con: Performance impact (database query on every order)
+   - Verdict: Too slow for high-volume stores
+
+2. **Permanent Array Storage** ❌
+   - Pro: Fast reads, simple implementation
+   - Con: Permanent redundancy, sync complexity
+   - Verdict: Violates DRY principle
+
+3. **Transient Cache Approach** ✅ **CHOSEN**
+   - Pro: No permanent redundancy (auto-expires)
+   - Pro: Fast reads when cached
+   - Pro: Always accurate (rebuilds from WooCommerce)
+   - Pro: Self-healing (cache expires and rebuilds)
+   - Verdict: Best of both worlds
+
+**Final Decision**: Use WordPress transients with smart invalidation
+```php
+// Cache with 5-minute expiration
+set_transient('woom_order_history_cache', $history, 300);
+
+// Invalidate on order changes
+delete_transient('woom_order_history_cache');
+
+// Rebuild from WooCommerce on next read
+$history = $this->rebuildOrderHistory();
+```
+
+**Impact on Implementation**:
+- ✅ No new permanent database storage needed
+- ✅ Simpler data management (no sync logic)
+- ✅ Better performance (cached reads)
+- ✅ Always accurate (source of truth is WooCommerce)
+
+---
+
 ### Why This Approach Works:
 
 1. **Phase 1 = Immediate Value**
@@ -620,11 +716,16 @@ add_action('woocommerce_order_status_failed',
 
 ### Key Design Decisions:
 
-- **Array-based storage** - Simple, fast, no new database tables
-- **Hook-based tracking** - Real-time, no cron overhead
+- **Transient cache storage** - No permanent redundancy, fast reads, self-healing (Updated 10/16/25)
+- **Hook-based cache invalidation** - Real-time updates, rebuilds from WooCommerce on demand
 - **Percentage-based thresholds** - Works for any order volume
 - **Minimum order requirement** - Prevents false positives
 - **Reuse existing throttling** - DRY principle, proven code
+
+**Design Evolution**:
+- *Original plan*: Permanent `woom_order_history` option
+- *Concern raised*: Data redundancy (WooCommerce already stores orders)
+- *Solution*: Transient cache approach - best of both worlds (no redundancy + performance)
 
 ---
 

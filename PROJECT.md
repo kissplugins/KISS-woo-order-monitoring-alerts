@@ -309,8 +309,8 @@ This is an automated alert from WooCommerce Order Monitor
 **Goal**: Implement failure-rate based monitoring that works for both high-volume and low-volume stores by tracking order success/failure patterns instead of time-based thresholds.
 
 **Problem Being Solved**:
-- **Bloomzhelm** (high-volume): Current time-based monitoring works well
-- **Bloomzhemp** (low-volume): Can go an hour without orders, making time-based monitoring ineffective
+- **Binoid** (high-volume): Current time-based monitoring works well
+- **BloomzHemp** (lower-volume): Can go an hour without orders, making time-based monitoring ineffective
 - **Need**: Detect when a high percentage of orders are failing, regardless of order frequency
 
 **Solution**: Track the last N orders in a rolling window and alert when failure rate exceeds threshold.

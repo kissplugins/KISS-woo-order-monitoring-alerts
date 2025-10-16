@@ -1,4 +1,6 @@
-# PROJECT-FSM: Finite State Machine Architecture Migration
+# PROJECT-FSM: Finite State Machine Architecture Migration - DEFERRED on 10-15-25
+
+Project paused on recommendations from Augment
 
 ## 🎯 High-Level Phase Overview
 

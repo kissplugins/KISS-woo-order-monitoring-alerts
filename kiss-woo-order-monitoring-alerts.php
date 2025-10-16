@@ -3,13 +3,14 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.5.4
+ * Version: 1.5.5
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * WC requires at least: 6.0
  * WC tested up to: 8.0
+ * Text Domain: kiss-woocomerce-order-monitor
  */
 
 // Prevent direct access
@@ -40,10 +41,22 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.5.4');
+define('WOOM_VERSION', '1.5.5');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
+
+// Include the Plugin Update Checker
+require_once WOOM_PLUGIN_DIR . 'lib/plugin-update-checker/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$update_checker = PucFactory::buildUpdateChecker(
+    'https://github.com/kissplugins/KISS-woo-order-monitoring-alerts',
+    __FILE__,
+    'kiss-woocomerce-order-monitor'
+);
+// Optional: Set the branch that contains the stable release.
+$update_checker->setBranch( 'main' );
 
 // Try to load PSR-4 bootstrap if available
 $bootstrap_file = WOOM_PLUGIN_DIR . 'bootstrap.php';

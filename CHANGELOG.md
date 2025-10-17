@@ -1,5 +1,86 @@
 ## Changelog
 
+### Version 1.6.0
+October 16, 2025
+
+**🎯 NEW FEATURE: Rolling Average Detection (RAD)**
+
+**Phase 1: Core RAD Foundation - Complete**
+
+**What is RAD?**
+- Failure-rate based monitoring that works for both high-volume and low-volume stores
+- Tracks order success/failure patterns instead of time-based thresholds
+- Solves the problem: "If 70% of last 10 orders fail, that's a problem" - regardless of time
+
+**New Features:**
+- **Order History Tracking** - Transient cache approach (no permanent redundancy)
+  - Tracks last N orders (configurable, default: 10)
+  - Uses WordPress transients with smart invalidation
+  - Rebuilds from WooCommerce on demand (source of truth)
+  - Auto-expires cache (5 minutes) - no data drift
+- **Failure Rate Calculation** - Percentage-based detection
+  - Calculates % of failed orders in rolling window
+  - Minimum order requirement prevents false positives
+  - Works for low-volume stores (can go hours without orders)
+- **WooCommerce Hook Integration** - Real-time tracking
+  - Hooks into `woocommerce_order_status_changed`
+  - Invalidates cache on order status changes
+  - Automatically checks failure rate after each order
+- **RAD-Specific Alerts** - Different from time-based alerts
+  - Custom email template for failure rate alerts
+  - Shows failure rate, threshold, and order breakdown
+  - Includes diagnostic hints (payment gateway, inventory, etc.)
+  - Respects existing cooldown/throttling settings
+- **Settings UI** - New "Rolling Average Detection" section
+  - Enable/disable RAD (opt-in for Phase 1)
+  - Configure window size (3-50 orders)
+  - Set failure threshold (1-100%)
+  - Set minimum orders before alerting (1-20)
+- **Self-Tests** - Comprehensive RAD testing
+  - Tests order history retrieval
+  - Tests failure rate calculation
+  - Tests cache functionality
+  - Tests hook registration
+  - Validates all RAD methods exist
+
+**Technical Implementation:**
+- **Transient Cache Design** - Best of both worlds
+  - No permanent data redundancy (WooCommerce already stores orders)
+  - Fast array-based calculations (when cached)
+  - Always accurate (rebuilds from WooCommerce)
+  - Self-healing (auto-expires and rebuilds)
+- **Settings Centralization** - Added to `SettingsDefaults`
+  - `rolling_enabled` - Enable/disable RAD (default: no)
+  - `rolling_window_size` - Orders to track (default: 10)
+  - `rolling_failure_threshold` - Alert threshold % (default: 70)
+  - `rolling_min_orders` - Minimum before alerting (default: 3)
+  - `rolling_cache_duration` - Cache expiration (default: 300s)
+- **New Methods in OrderMonitor** - v1.6.0
+  - `getOrderHistory()` - Get cached or rebuild order history
+  - `rebuildOrderHistory()` - Query WooCommerce for recent orders
+  - `calculateFailureRate()` - Calculate % of failed orders
+  - `checkRollingFailureRate()` - Check threshold and send alerts
+  - `onOrderStatusChanged()` - Hook handler for cache invalidation
+  - `sendRollingAverageAlert()` - Send RAD-specific email
+  - `buildRollingAverageAlertEmail()` - Generate RAD email template
+
+**Design Evolution:**
+- Original plan: Permanent `woom_order_history` option
+- Concern: Data redundancy (WooCommerce already stores orders)
+- Solution: Transient cache with smart invalidation
+- Result: No redundancy + performance + accuracy
+
+**Use Cases:**
+- **High-volume stores** (Bloomzhelm): Hybrid mode (time-based + RAD)
+- **Low-volume stores** (Bloomzhemp): RAD-only mode (works with <1 order/hour)
+- **All stores**: Better detection of payment gateway issues, checkout errors
+
+**Next Steps (Future Phases):**
+- Phase 2: Dual-mode monitoring (hybrid time-based + RAD)
+- Phase 3: Advanced analytics (trend analysis, adaptive thresholds)
+
+---
+
 ### Version 1.5.5
 October 16, 2025
 

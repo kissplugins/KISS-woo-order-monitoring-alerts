@@ -89,6 +89,24 @@ October 16, 2025
   - Solution: Added `isset()` check before `is_array()` check, added validation for class/file entries
   - Impact: Prevents PHP warnings during plugin activation/initialization edge cases
 
+**🔒 Security & CI/CD:**
+- **WPScan GitHub Action** - Automated security scanning workflow (`.github/workflows/wpscan.yml`)
+  - Runs on: push, pull requests, weekly schedule (Mondays 9 AM UTC), manual trigger
+  - Security checks performed:
+    - ✓ SQL injection prevention (validates prepared statements)
+    - ✓ XSS prevention (validates output escaping)
+    - ✓ CSRF protection (validates nonce verification)
+    - ✓ Authorization checks (validates capability verification)
+    - ✓ File inclusion safety (detects unsafe includes/requires)
+    - ✓ Direct file access protection (validates ABSPATH checks)
+    - ✓ Credential security (scans for hardcoded secrets)
+    - ✓ Dangerous function usage (detects eval, exec, system, etc.)
+  - Optional: WPScan API integration for vulnerability database
+    - Requires free API token from https://wpscan.com/register
+    - Free tier: 25 API requests per day
+    - Add as GitHub secret: `WPSCAN_API_TOKEN`
+  - Provides actionable security reports in GitHub Actions logs
+
 **Next Steps (Future Phases):**
 - Phase 2: Dual-mode monitoring (hybrid time-based + RAD)
 - Phase 3: Advanced analytics (trend analysis, adaptive thresholds)

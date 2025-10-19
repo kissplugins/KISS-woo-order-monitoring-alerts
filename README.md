@@ -134,6 +134,11 @@ Check `/wp-content/debug.log` for monitoring activity.
 - **Input Validation**: All settings are validated and sanitized
 - **Nonce Protection**: CSRF protection on all forms
 - **SQL Injection Prevention**: Prepared statements for all queries
+- **Automated Security Scanning**: WPScan GitHub Action runs on every push/PR
+  - Validates WordPress security best practices
+  - Checks for common vulnerabilities (SQL injection, XSS, CSRF, etc.)
+  - Weekly scheduled scans
+  - Optional vulnerability database integration
 
 ## License
 

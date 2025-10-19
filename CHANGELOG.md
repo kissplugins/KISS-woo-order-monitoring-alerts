@@ -82,6 +82,12 @@ October 16, 2025
   - Root cause: `wc_get_orders()` can return null if WooCommerce not fully loaded or database error
   - Solution: Added `is_array()` check before foreach loop, returns empty array on error
   - Impact: Prevents PHP warnings and gracefully handles edge cases
+- **Fixed foreach() null error in autoloader** - Enhanced type checking in fallback autoloader
+  - Error: `PHP Warning: foreach() argument must be of type array|object, null given`
+  - Location: `src/autoload-fallback.php:91` (woom_load_critical_classes function)
+  - Root cause: `$woom_class_map` global variable could be null in edge cases during plugin initialization
+  - Solution: Added `isset()` check before `is_array()` check, added validation for class/file entries
+  - Impact: Prevents PHP warnings during plugin activation/initialization edge cases
 
 **Next Steps (Future Phases):**
 - Phase 2: Dual-mode monitoring (hybrid time-based + RAD)

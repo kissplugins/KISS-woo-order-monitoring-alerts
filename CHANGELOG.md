@@ -1,9 +1,44 @@
 ## Changelog
 
+### Version 1.6.1
+October 19, 2025
+
+**🔒 Security & CI/CD:**
+- **WPScan GitHub Action** - Automated security scanning workflow (`.github/workflows/wpscan.yml`)
+  - Runs on: push, pull requests, weekly schedule (Mondays 9 AM UTC), manual trigger
+  - Security checks performed:
+    - ✓ SQL injection prevention (validates prepared statements)
+    - ✓ XSS prevention (validates output escaping)
+    - ✓ CSRF protection (validates nonce verification)
+    - ✓ Authorization checks (validates capability verification)
+    - ✓ File inclusion safety (detects unsafe includes/requires)
+    - ✓ Direct file access protection (validates ABSPATH checks)
+    - ✓ Credential security (scans for hardcoded secrets)
+    - ✓ Dangerous function usage (detects eval, exec, system, etc.)
+  - Optional: WPScan API integration for vulnerability database
+    - Requires free API token from https://wpscan.com/register
+    - Free tier: 25 API requests per day
+    - Add as GitHub secret: `WPSCAN_API_TOKEN`
+  - Provides actionable security reports in GitHub Actions logs
+
+  **🐛 Bug Fixes:**
+- **Fixed foreach() null error in RAD** - Added guard against null return from `wc_get_orders()`
+  - Error: `PHP Warning: foreach() argument must be of type array|object null given`
+  - Location: `src/Monitoring/OrderMonitor.php:542` (rebuildOrderHistory method)
+  - Root cause: `wc_get_orders()` can return null if WooCommerce not fully loaded or database error
+  - Solution: Added `is_array()` check before foreach loop, returns empty array on error
+  - Impact: Prevents PHP warnings and gracefully handles edge cases
+- **Fixed foreach() null error in autoloader** - Enhanced type checking in fallback autoloader
+  - Error: `PHP Warning: foreach() argument must be of type array|object, null given`
+  - Location: `src/autoload-fallback.php:91` (woom_load_critical_classes function)
+  - Root cause: `$woom_class_map` global variable could be null in edge cases during plugin initialization
+  - Solution: Added `isset()` check before `is_array()` check, added validation for class/file entries
+  - Impact: Prevents PHP warnings during plugin activation/initialization edge cases
+
 ### Version 1.6.0
 October 16, 2025
 
-**🎯 NEW FEATURE: Rolling Average Detection (RAD)**
+**🎯 NEW FEATURE: Rolling Average Detection (RAD)** 
 
 **Phase 1: Core RAD Foundation - Complete**
 
@@ -74,38 +109,6 @@ October 16, 2025
 - **High-volume stores** Hybrid mode (time-based + RAD)
 - **Low-volume stores** RAD-only mode (works with <1 order/hour)
 - **All stores**: Better detection of payment gateway issues, checkout errors
-
-**🐛 Bug Fixes:**
-- **Fixed foreach() null error in RAD** - Added guard against null return from `wc_get_orders()`
-  - Error: `PHP Warning: foreach() argument must be of type array|object null given`
-  - Location: `src/Monitoring/OrderMonitor.php:542` (rebuildOrderHistory method)
-  - Root cause: `wc_get_orders()` can return null if WooCommerce not fully loaded or database error
-  - Solution: Added `is_array()` check before foreach loop, returns empty array on error
-  - Impact: Prevents PHP warnings and gracefully handles edge cases
-- **Fixed foreach() null error in autoloader** - Enhanced type checking in fallback autoloader
-  - Error: `PHP Warning: foreach() argument must be of type array|object, null given`
-  - Location: `src/autoload-fallback.php:91` (woom_load_critical_classes function)
-  - Root cause: `$woom_class_map` global variable could be null in edge cases during plugin initialization
-  - Solution: Added `isset()` check before `is_array()` check, added validation for class/file entries
-  - Impact: Prevents PHP warnings during plugin activation/initialization edge cases
-
-**🔒 Security & CI/CD:**
-- **WPScan GitHub Action** - Automated security scanning workflow (`.github/workflows/wpscan.yml`)
-  - Runs on: push, pull requests, weekly schedule (Mondays 9 AM UTC), manual trigger
-  - Security checks performed:
-    - ✓ SQL injection prevention (validates prepared statements)
-    - ✓ XSS prevention (validates output escaping)
-    - ✓ CSRF protection (validates nonce verification)
-    - ✓ Authorization checks (validates capability verification)
-    - ✓ File inclusion safety (detects unsafe includes/requires)
-    - ✓ Direct file access protection (validates ABSPATH checks)
-    - ✓ Credential security (scans for hardcoded secrets)
-    - ✓ Dangerous function usage (detects eval, exec, system, etc.)
-  - Optional: WPScan API integration for vulnerability database
-    - Requires free API token from https://wpscan.com/register
-    - Free tier: 25 API requests per day
-    - Add as GitHub secret: `WPSCAN_API_TOKEN`
-  - Provides actionable security reports in GitHub Actions logs
 
 **Next Steps (Future Phases):**
 - Phase 2: Dual-mode monitoring (hybrid time-based + RAD)

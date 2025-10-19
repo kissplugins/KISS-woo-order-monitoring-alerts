@@ -75,6 +75,14 @@ October 16, 2025
 - **Low-volume stores** RAD-only mode (works with <1 order/hour)
 - **All stores**: Better detection of payment gateway issues, checkout errors
 
+**🐛 Bug Fixes:**
+- **Fixed foreach() null error in RAD** - Added guard against null return from `wc_get_orders()`
+  - Error: `PHP Warning: foreach() argument must be of type array|object null given`
+  - Location: `src/Monitoring/OrderMonitor.php:542` (rebuildOrderHistory method)
+  - Root cause: `wc_get_orders()` can return null if WooCommerce not fully loaded or database error
+  - Solution: Added `is_array()` check before foreach loop, returns empty array on error
+  - Impact: Prevents PHP warnings and gracefully handles edge cases
+
 **Next Steps (Future Phases):**
 - Phase 2: Dual-mode monitoring (hybrid time-based + RAD)
 - Phase 3: Advanced analytics (trend analysis, adaptive thresholds)

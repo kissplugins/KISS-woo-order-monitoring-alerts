@@ -539,6 +539,14 @@ class OrderMonitor {
         ]);
 
         $history = [];
+
+        // Guard against null or non-array return from wc_get_orders
+        if (!is_array($orders)) {
+            error_log('[WooCommerce Order Monitor] wc_get_orders returned non-array value in rebuildOrderHistory');
+            set_transient('woom_order_history_cache', [], $cache_duration);
+            return [];
+        }
+
         foreach ($orders as $order) {
             $order_status = $order->get_status();
 

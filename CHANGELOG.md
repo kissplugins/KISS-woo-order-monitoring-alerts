@@ -71,8 +71,8 @@ October 16, 2025
 - Result: No redundancy + performance + accuracy
 
 **Use Cases:**
-- **High-volume stores** (Bloomzhelm): Hybrid mode (time-based + RAD)
-- **Low-volume stores** (Bloomzhemp): RAD-only mode (works with <1 order/hour)
+- **High-volume stores** Hybrid mode (time-based + RAD)
+- **Low-volume stores** RAD-only mode (works with <1 order/hour)
 - **All stores**: Better detection of payment gateway issues, checkout errors
 
 **Next Steps (Future Phases):**

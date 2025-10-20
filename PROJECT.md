@@ -6,7 +6,7 @@
 ## 🎯 **CURRENT PRIORITY: Rolling Average Detection (RAD)**
 **Status**: Active Development
 **Started**: October 16, 2025
-**Target**: v1.6.0
+**Current Version**: v1.6.1
 
 **Quick Links**:
 - [RAD Project Details](#project-rad-rolling-average-detection) ← Jump to full specification

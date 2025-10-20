@@ -61,7 +61,14 @@ class SettingsDefaults {
         'enable_system_alerts' => 'yes',
         'webhook_url' => '',
         'query_cache_duration' => 300, // 5 minutes in seconds
-        
+
+        // Rolling Average Detection (RAD) settings - v1.6.0
+        'rolling_enabled' => 'no', // Opt-in for Phase 1
+        'rolling_window_size' => 10, // Track last N orders
+        'rolling_failure_threshold' => 70, // Alert if X% of orders fail
+        'rolling_min_orders' => 3, // Minimum orders before alerting
+        'rolling_cache_duration' => 300, // 5 minutes in seconds
+
         // Plugin metadata
         'plugin_version' => '',
         'activated_at' => 0,
@@ -163,7 +170,14 @@ class SettingsDefaults {
             'daily_alert_date' => ['type' => 'date'],
             'enable_system_alerts' => ['type' => 'string', 'values' => ['yes', 'no']],
             'webhook_url' => ['type' => 'url'],
-            'query_cache_duration' => ['type' => 'int', 'min' => 60, 'max' => 3600] // 1 min to 1 hour
+            'query_cache_duration' => ['type' => 'int', 'min' => 60, 'max' => 3600], // 1 min to 1 hour
+
+            // Rolling Average Detection validation rules
+            'rolling_enabled' => ['type' => 'string', 'values' => ['yes', 'no']],
+            'rolling_window_size' => ['type' => 'int', 'min' => 3, 'max' => 50],
+            'rolling_failure_threshold' => ['type' => 'int', 'min' => 1, 'max' => 100],
+            'rolling_min_orders' => ['type' => 'int', 'min' => 1, 'max' => 20],
+            'rolling_cache_duration' => ['type' => 'int', 'min' => 60, 'max' => 3600]
         ];
     }
     

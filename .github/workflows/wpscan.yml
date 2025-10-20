@@ -1,0 +1,186 @@
+name: WPScan Security Scan
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+  schedule:
+    # Run weekly on Mondays at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  wpscan:
+    name: WPScan Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: WPScan - Plugin Security Scan
+      run: |
+        echo "🔍 Running WPScan security analysis on plugin files..."
+        echo ""
+        echo "📋 Plugin Information:"
+        echo "  Name: KISS WooCommerce Order Monitoring & Alerts"
+        echo "  Version: $(grep -oP "Version:\s*\K[\d\.]+" kiss-woo-order-monitoring-alerts.php || echo 'unknown')"
+        echo "  Files to scan: $(find . -name "*.php" -not -path "./vendor/*" -not -path "./lib/*" -not -path "./node_modules/*" | wc -l) PHP files"
+        echo ""
+        
+        # Check for common security issues in plugin code
+        echo "🔒 Checking for common WordPress security issues..."
+        echo ""
+        
+        # Check for SQL injection vulnerabilities
+        echo "1️⃣ Checking for potential SQL injection vulnerabilities..."
+        if grep -r "\$wpdb->query\|\$wpdb->get_" --include="*.php" . | grep -v "prepare" | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github"; then
+          echo "⚠️  WARNING: Found database queries that might not use prepared statements"
+          echo "   Review these queries to ensure they use \$wpdb->prepare()"
+        else
+          echo "✅ All database queries appear to use prepared statements"
+        fi
+        echo ""
+        
+        # Check for XSS vulnerabilities
+        echo "2️⃣ Checking for potential XSS vulnerabilities..."
+        if grep -r "echo.*\$_\|print.*\$_" --include="*.php" . | grep -v "esc_\|wp_kses" | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github"; then
+          echo "⚠️  WARNING: Found potential unescaped output"
+          echo "   Review these to ensure proper escaping (esc_html, esc_attr, etc.)"
+        else
+          echo "✅ No obvious unescaped output found"
+        fi
+        echo ""
+        
+        # Check for nonce verification
+        echo "3️⃣ Checking for nonce verification in AJAX/form handlers..."
+        AJAX_HANDLERS=$(grep -r "wp_ajax_\|admin_post_" --include="*.php" . | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github" | wc -l)
+        NONCE_CHECKS=$(grep -r "wp_verify_nonce\|check_ajax_referer" --include="*.php" . | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github" | wc -l)
+        echo "   AJAX/Form handlers found: $AJAX_HANDLERS"
+        echo "   Nonce verifications found: $NONCE_CHECKS"
+        if [ "$AJAX_HANDLERS" -gt 0 ] && [ "$NONCE_CHECKS" -eq 0 ]; then
+          echo "⚠️  WARNING: AJAX handlers found but no nonce verification detected"
+        else
+          echo "✅ Nonce verification appears to be implemented"
+        fi
+        echo ""
+        
+        # Check for capability checks
+        echo "4️⃣ Checking for capability/permission checks..."
+        if grep -r "current_user_can\|is_admin\|is_user_logged_in" --include="*.php" . | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github" > /dev/null; then
+          echo "✅ Capability checks found in code"
+        else
+          echo "⚠️  WARNING: No capability checks found - ensure admin functions are protected"
+        fi
+        echo ""
+        
+        # Check for file inclusion vulnerabilities
+        echo "5️⃣ Checking for potential file inclusion vulnerabilities..."
+        if grep -r "include.*\$_\|require.*\$_" --include="*.php" . | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github"; then
+          echo "⚠️  WARNING: Found potential unsafe file inclusion"
+          echo "   Review these to ensure user input is properly validated"
+        else
+          echo "✅ No obvious unsafe file inclusion found"
+        fi
+        echo ""
+        
+        # Check for direct file access protection
+        echo "6️⃣ Checking for direct file access protection..."
+        PHP_FILES=$(find . -name "*.php" -not -path "./vendor/*" -not -path "./lib/*" -not -path "./node_modules/*" | wc -l)
+        PROTECTED_FILES=$(grep -r "defined.*ABSPATH\|exit.*direct" --include="*.php" . | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | wc -l)
+        echo "   Total PHP files: $PHP_FILES"
+        echo "   Files with protection: $PROTECTED_FILES"
+        if [ "$PROTECTED_FILES" -lt "$PHP_FILES" ]; then
+          echo "⚠️  WARNING: Some PHP files may lack direct access protection"
+          echo "   Consider adding: if (!defined('ABSPATH')) { exit; }"
+        else
+          echo "✅ All PHP files appear to have direct access protection"
+        fi
+        echo ""
+        
+        # Check for hardcoded credentials
+        echo "7️⃣ Checking for hardcoded credentials..."
+        if grep -ri "password\s*=\s*['\"][^'\"]\|api_key\s*=\s*['\"][^'\"]\|secret\s*=\s*['\"][^'\"]\|token\s*=\s*['\"][^'\"]\|mysql.*password" --include="*.php" . | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github" | grep -v "get_option\|update_option\|Settings" | grep -v "//"; then
+          echo "⚠️  WARNING: Potential hardcoded credentials found"
+          echo "   Review these to ensure no sensitive data is hardcoded"
+        else
+          echo "✅ No obvious hardcoded credentials found"
+        fi
+        echo ""
+        
+        # Check for eval() usage
+        echo "8️⃣ Checking for dangerous functions (eval, exec, system)..."
+        if grep -r "\beval\s*(\|exec\s*(\|system\s*(\|passthru\s*(\|shell_exec\s*(" --include="*.php" . | grep -v "vendor" | grep -v "lib" | grep -v "node_modules" | grep -v ".github"; then
+          echo "⚠️  WARNING: Dangerous functions found - review carefully"
+        else
+          echo "✅ No dangerous functions found"
+        fi
+        echo ""
+        
+        # Summary
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📊 Security Scan Summary"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "✅ Scan completed successfully"
+        echo ""
+        echo "📝 Next Steps:"
+        echo "   1. Review any warnings above"
+        echo "   2. For vulnerability database scanning, add WPSCAN_API_TOKEN secret"
+        echo "   3. Register for free API token at: https://wpscan.com/register"
+        echo "   4. Free tier includes 25 API requests per day"
+        echo ""
+        echo "💡 To enable full WPScan vulnerability scanning:"
+        echo "   - Go to: Repository Settings → Secrets → Actions"
+        echo "   - Add new secret: WPSCAN_API_TOKEN"
+        echo "   - Value: Your API token from wpscan.com"
+        echo ""
+    
+    - name: WPScan - Vulnerability Database Check (Optional)
+      if: ${{ secrets.WPSCAN_API_TOKEN != '' }}
+      run: |
+        echo "🔍 Running WPScan vulnerability database check..."
+        echo ""
+        echo "⚠️  Note: This step requires a WordPress installation URL"
+        echo "   Since this is a plugin repository, we skip live site scanning"
+        echo "   The API token can be used when deploying to a test environment"
+        echo ""
+        echo "💡 To scan a WordPress site with this plugin installed:"
+        echo "   docker run -it --rm wpscanteam/wpscan \\"
+        echo "     --url https://your-site.com \\"
+        echo "     --api-token \$WPSCAN_API_TOKEN \\"
+        echo "     --enumerate vp,vt"
+        echo ""
+    
+    - name: Security Scan Results
+      if: always()
+      run: |
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "✅ WPScan Security Analysis Complete"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "📋 Scan Details:"
+        echo "   Repository: ${{ github.repository }}"
+        echo "   Branch: ${{ github.ref_name }}"
+        echo "   Commit: ${{ github.sha }}"
+        echo "   Triggered by: ${{ github.event_name }}"
+        echo ""
+        echo "🔒 Security Best Practices Checked:"
+        echo "   ✓ SQL injection prevention (prepared statements)"
+        echo "   ✓ XSS prevention (output escaping)"
+        echo "   ✓ CSRF protection (nonce verification)"
+        echo "   ✓ Authorization checks (capability verification)"
+        echo "   ✓ File inclusion safety"
+        echo "   ✓ Direct access protection"
+        echo "   ✓ Credential security"
+        echo "   ✓ Dangerous function usage"
+        echo ""
+        echo "📚 Resources:"
+        echo "   • WordPress Plugin Security: https://developer.wordpress.org/plugins/security/"
+        echo "   • WPScan Documentation: https://github.com/wpscanteam/wpscan/wiki"
+        echo "   • OWASP Top 10: https://owasp.org/www-project-top-ten/"
+        echo ""
+

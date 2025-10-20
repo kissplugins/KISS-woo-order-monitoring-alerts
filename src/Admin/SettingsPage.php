@@ -273,6 +273,61 @@ class SettingsPage {
             'section_end' => [
                 'type' => 'sectionend',
                 'id' => 'woom_section_end'
+            ],
+
+            // Rolling Average Detection (RAD) Section - v1.6.0
+            'rad_section_title' => [
+                'name' => __('Rolling Average Detection (RAD)', 'woo-order-monitor'),
+                'type' => 'title',
+                'desc' => __('Failure-rate based monitoring that works for both high-volume and low-volume stores. Tracks order success/failure patterns instead of time-based thresholds.', 'woo-order-monitor'),
+                'id' => 'woom_rad_section_title'
+            ],
+            'rolling_enabled' => [
+                'name' => __('Enable RAD', 'woo-order-monitor'),
+                'type' => 'checkbox',
+                'desc' => __('Enable Rolling Average Detection (monitors failure rate instead of order count)', 'woo-order-monitor'),
+                'id' => 'woom_rolling_enabled',
+                'default' => $defaults['rolling_enabled']
+            ],
+            'rolling_window_size' => [
+                'name' => __('Window Size', 'woo-order-monitor'),
+                'type' => 'number',
+                'desc' => __('Number of recent orders to track (default: 10)', 'woo-order-monitor'),
+                'id' => 'woom_rolling_window_size',
+                'default' => $defaults['rolling_window_size'],
+                'custom_attributes' => [
+                    'min' => 3,
+                    'max' => 50,
+                    'step' => 1
+                ]
+            ],
+            'rolling_failure_threshold' => [
+                'name' => __('Failure Threshold (%)', 'woo-order-monitor'),
+                'type' => 'number',
+                'desc' => __('Alert when this percentage of orders fail (default: 70%)', 'woo-order-monitor'),
+                'id' => 'woom_rolling_failure_threshold',
+                'default' => $defaults['rolling_failure_threshold'],
+                'custom_attributes' => [
+                    'min' => 1,
+                    'max' => 100,
+                    'step' => 1
+                ]
+            ],
+            'rolling_min_orders' => [
+                'name' => __('Minimum Orders', 'woo-order-monitor'),
+                'type' => 'number',
+                'desc' => __('Minimum orders required before alerting (prevents false positives)', 'woo-order-monitor'),
+                'id' => 'woom_rolling_min_orders',
+                'default' => $defaults['rolling_min_orders'],
+                'custom_attributes' => [
+                    'min' => 1,
+                    'max' => 20,
+                    'step' => 1
+                ]
+            ],
+            'rad_section_end' => [
+                'type' => 'sectionend',
+                'id' => 'woom_rad_section_end'
             ]
         ];
     }

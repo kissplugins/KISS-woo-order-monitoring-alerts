@@ -59,6 +59,11 @@ class SelfTests {
             'name' => 'Settings Centralization Test',
             'description' => 'Validates that all default values use SettingsDefaults (prevents configuration drift)',
             'icon' => 'admin-settings'
+        ],
+        'rolling_average_detection' => [
+            'name' => 'Rolling Average Detection (RAD) Test',
+            'description' => 'Tests RAD order history tracking, failure rate calculation, and alerting logic',
+            'icon' => 'chart-area'
         ]
     ];
     
@@ -91,6 +96,9 @@ class SelfTests {
         
         $this->available_tests['cron_scheduling']['name'] = __('Cron Scheduling Test', 'woo-order-monitor');
         $this->available_tests['cron_scheduling']['description'] = __('Checks cron job registration and scheduling functionality', 'woo-order-monitor');
+
+        $this->available_tests['rolling_average_detection']['name'] = __('Rolling Average Detection (RAD) Test', 'woo-order-monitor');
+        $this->available_tests['rolling_average_detection']['description'] = __('Tests RAD order history tracking, failure rate calculation, and alerting logic', 'woo-order-monitor');
     }
     
     /**
@@ -427,6 +435,10 @@ class SelfTests {
 
                     case 'settings_centralization':
                         $results[$test_key] = $this->testSettingsCentralization();
+                        break;
+
+                    case 'rolling_average_detection':
+                        $results[$test_key] = $this->testRollingAverageDetection();
                         break;
 
                     default:
@@ -944,5 +956,139 @@ class SelfTests {
      */
     public function getTest(string $test_key): ?array {
         return $this->available_tests[$test_key] ?? null;
+    }
+
+    /**
+     * Test Rolling Average Detection (RAD) functionality
+     *
+     * Tests order history tracking, failure rate calculation,
+     * and alerting logic for the RAD system.
+     *
+     * @return array Test results
+     * @since 1.6.0
+     */
+    private function testRollingAverageDetection(): array {
+        try {
+            $test_details = [];
+            $warnings = [];
+
+            // Test 1: Check if RAD settings exist
+            $rad_enabled = $this->settings->get('rolling_enabled', 'no');
+            $window_size = $this->settings->get('rolling_window_size', 10);
+            $failure_threshold = $this->settings->get('rolling_failure_threshold', 70);
+            $min_orders = $this->settings->get('rolling_min_orders', 3);
+
+            $test_details['settings'] = [
+                'enabled' => $rad_enabled,
+                'window_size' => $window_size,
+                'failure_threshold' => $failure_threshold . '%',
+                'min_orders' => $min_orders
+            ];
+
+            // Test 2: Check if OrderMonitor has RAD methods
+            $plugin = \KissPlugins\WooOrderMonitor\Core\Plugin::getInstance();
+            $order_monitor = $plugin->getOrderMonitor();
+
+            if (!method_exists($order_monitor, 'getOrderHistory')) {
+                return [
+                    'status' => 'error',
+                    'message' => __('RAD methods not found in OrderMonitor class', 'woo-order-monitor'),
+                    'details' => $test_details
+                ];
+            }
+
+            if (!method_exists($order_monitor, 'calculateFailureRate')) {
+                return [
+                    'status' => 'error',
+                    'message' => __('calculateFailureRate method not found in OrderMonitor class', 'woo-order-monitor'),
+                    'details' => $test_details
+                ];
+            }
+
+            $test_details['methods_available'] = 'All RAD methods present';
+
+            // Test 3: Test order history retrieval
+            try {
+                $history = $order_monitor->getOrderHistory();
+                $test_details['order_history'] = [
+                    'count' => count($history),
+                    'sample' => array_slice($history, 0, 3) // First 3 orders
+                ];
+
+                if (count($history) === 0) {
+                    $warnings[] = 'No order history available (no recent orders)';
+                }
+            } catch (\Exception $e) {
+                return [
+                    'status' => 'error',
+                    'message' => __('Failed to retrieve order history: ', 'woo-order-monitor') . $e->getMessage(),
+                    'details' => $test_details
+                ];
+            }
+
+            // Test 4: Test failure rate calculation
+            try {
+                $failure_rate = $order_monitor->calculateFailureRate();
+
+                if ($failure_rate === null) {
+                    $test_details['failure_rate'] = 'Insufficient data (less than ' . $min_orders . ' orders)';
+                    $warnings[] = 'Not enough orders for failure rate calculation';
+                } else {
+                    $test_details['failure_rate'] = round($failure_rate, 2) . '%';
+
+                    if ($failure_rate >= $failure_threshold) {
+                        $warnings[] = sprintf(
+                            'Current failure rate (%.2f%%) exceeds threshold (%d%%)',
+                            $failure_rate,
+                            $failure_threshold
+                        );
+                    }
+                }
+            } catch (\Exception $e) {
+                return [
+                    'status' => 'error',
+                    'message' => __('Failed to calculate failure rate: ', 'woo-order-monitor') . $e->getMessage(),
+                    'details' => $test_details
+                ];
+            }
+
+            // Test 5: Test cache functionality
+            $cache_exists = get_transient('woom_order_history_cache');
+            $test_details['cache_status'] = $cache_exists !== false ? 'Cached' : 'Not cached (will rebuild on next read)';
+
+            // Test 6: Verify hook registration (if RAD is enabled)
+            if ($rad_enabled === 'yes') {
+                $hook_registered = has_action('woocommerce_order_status_changed', [$order_monitor, 'onOrderStatusChanged']);
+                $test_details['hook_registered'] = $hook_registered !== false ? 'Yes' : 'No';
+
+                if ($hook_registered === false) {
+                    $warnings[] = 'RAD is enabled but hook is not registered';
+                }
+            } else {
+                $test_details['hook_registered'] = 'N/A (RAD disabled)';
+            }
+
+            // Determine overall status
+            if (!empty($warnings)) {
+                return [
+                    'status' => 'warning',
+                    'message' => __('RAD system functional with warnings', 'woo-order-monitor'),
+                    'details' => array_merge($test_details, ['warnings' => $warnings])
+                ];
+            }
+
+            return [
+                'status' => 'pass',
+                'message' => __('RAD system working correctly', 'woo-order-monitor'),
+                'details' => $test_details
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => __('RAD test failed: ', 'woo-order-monitor') . $e->getMessage(),
+                'details' => ['exception' => $e->getMessage()]
+            ];
+        }
     }
 }

@@ -81,18 +81,27 @@ $woom_class_map = [
 
 /**
  * Load critical classes
- * 
+ *
  * This function pre-loads critical classes that are needed
  * for the plugin to function properly.
  */
 function woom_load_critical_classes() {
     global $woom_class_map;
-    if (empty($woom_class_map) || !is_array($woom_class_map)) {
+
+    // Guard against null or non-array $woom_class_map
+    if (!isset($woom_class_map) || !is_array($woom_class_map) || empty($woom_class_map)) {
+        error_log('[WooCommerce Order Monitor] Class map not available in woom_load_critical_classes');
         return;
     }
+
     foreach ($woom_class_map as $class => $file) {
+        // Additional safety check for valid class/file entries
+        if (empty($class) || empty($file) || !is_string($class) || !is_string($file)) {
+            continue;
+        }
+
         $file_path = WOOM_PLUGIN_DIR . 'src' . DIRECTORY_SEPARATOR . $file;
-        
+
         if (file_exists($file_path) && !class_exists($class)) {
             require_once $file_path;
         }

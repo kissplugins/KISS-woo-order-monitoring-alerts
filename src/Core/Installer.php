@@ -165,7 +165,7 @@ class Installer {
      * @return void
      */
     private function scheduleCronJob(): void {
-        $enabled = \get_option('woom_enabled', 'yes');
+        $enabled = \get_option('woom_enabled', SettingsDefaults::getDefault('enabled'));
 
         if ('yes' === $enabled) {
             // Clear any existing scheduled events first
@@ -291,13 +291,13 @@ class Installer {
      */
     public function getInstallationStatus(): array {
         return [
-            'installed_version' => get_option('woom_plugin_version', 'Not installed'),
+            'installed_version' => get_option('woom_plugin_version', SettingsDefaults::getDefault('plugin_version')),
             'current_version' => $this->plugin_version,
             'needs_migration' => $this->needsMigration(),
-            'activated_at' => get_option('woom_activated_at', 0),
-            'deactivated_at' => get_option('woom_deactivated_at', 0),
+            'activated_at' => get_option('woom_activated_at', SettingsDefaults::getDefault('activated_at')),
+            'deactivated_at' => get_option('woom_deactivated_at', SettingsDefaults::getDefault('deactivated_at')),
             'cron_scheduled' => wp_next_scheduled('woom_check_orders') !== false,
-            'action_scheduler_scheduled' => function_exists('as_next_scheduled_action') ? 
+            'action_scheduler_scheduled' => function_exists('as_next_scheduled_action') ?
                 as_next_scheduled_action('woom_as_check_orders') !== false : false
         ];
     }

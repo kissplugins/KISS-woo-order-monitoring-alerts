@@ -3,6 +3,13 @@
 ### Version 1.6.1
 October 23, 2025
 
+**✨ Improvements:**
+- **Enhanced RAD settings guidance** - Added comprehensive help text for "Failure Threshold (%)" field
+  - Explains sensitivity: Lower values = more alerts, Higher values = fewer alerts
+  - Provides concrete examples: 50% vs 90% threshold behavior
+  - Recommends optimal range: 60-80% for most stores
+  - Helps users make informed decisions about alert sensitivity
+
 **🐛 Bug Fixes:**
 - **Fixed hardcoded default values** - Removed all hardcoded defaults in favor of SettingsDefaults
   - Fixed: `kiss-woo-order-monitoring-alerts.php` - Removed duplicate hardcoded defaults in `activate()` method

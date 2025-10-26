@@ -304,7 +304,7 @@ class SettingsPage {
             'rolling_failure_threshold' => [
                 'name' => __('Failure Threshold (%)', 'woo-order-monitor'),
                 'type' => 'number',
-                'desc' => __('Alert when this percentage of orders fail (default: 70%)', 'woo-order-monitor'),
+                'desc' => __('Alert when this percentage of orders fail (default: 70%). <strong>Lower values = more sensitive</strong> (more alerts for smaller issues). <strong>Higher values = less sensitive</strong> (fewer alerts, only for major problems). Example: 50% alerts if half your orders fail, 90% only alerts if nearly all orders fail. Recommended: 60-80% for most stores.', 'woo-order-monitor'),
                 'id' => 'woom_rolling_failure_threshold',
                 'default' => $defaults['rolling_failure_threshold'],
                 'custom_attributes' => [

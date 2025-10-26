@@ -1,5 +1,49 @@
 ## Changelog
 
+### Version 1.6.1
+October 23, 2025
+
+**✨ Improvements:**
+- **Enhanced RAD settings guidance** - Added comprehensive help text for "Failure Threshold (%)" field
+  - Explains sensitivity: Lower values = more alerts, Higher values = fewer alerts
+  - Provides concrete examples: 50% vs 90% threshold behavior
+  - Recommends optimal range: 60-80% for most stores
+  - Helps users make informed decisions about alert sensitivity
+
+**🐛 Bug Fixes:**
+- **Fixed hardcoded default values** - Removed all hardcoded defaults in favor of SettingsDefaults
+  - Fixed: `kiss-woo-order-monitoring-alerts.php` - Removed duplicate hardcoded defaults in `activate()` method
+  - Fixed: `kiss-woo-order-monitoring-alerts.php` - Form field defaults now use `SettingsDefaults::getDefault()`
+    - `alert_cooldown` field (line 1706)
+    - `max_daily_alerts` field (line 1718)
+    - `notification_emails` field (line 1691)
+    - `last_check` display field (line 1265)
+    - `last_alert` display field (line 1266)
+  - Fixed: `src/Core/Installer.php` - Replaced hardcoded 'yes' with `SettingsDefaults::getDefault('enabled')`
+  - Fixed: `src/Core/Installer.php` - Status display now uses SettingsDefaults for metadata fields
+  - Impact: All default values now centralized in `SettingsDefaults` - single source of truth
+  - Validation: Self-test `settings_centralization` now passes ✅
+
+**🔒 Security & CI/CD:**
+- **WPScan GitHub Action** - Automated security scanning workflow (`.github/workflows/wpscan.yml`)
+  - Runs on: push, pull requests, weekly schedule (Mondays 9 AM UTC), manual trigger
+  - Security checks performed:
+    - ✓ SQL injection prevention (validates prepared statements)
+    - ✓ XSS prevention (validates output escaping)
+    - ✓ CSRF protection (validates nonce verification)
+    - ✓ Authorization checks (validates capability verification)
+    - ✓ File inclusion safety (detects unsafe includes/requires)
+    - ✓ Direct file access protection (validates ABSPATH checks)
+    - ✓ Credential security (scans for hardcoded secrets)
+    - ✓ Dangerous function usage (detects eval, exec, system, etc.)
+  - Optional: WPScan API integration for vulnerability database
+    - Requires free API token from https://wpscan.com/register
+    - Free tier: 25 API requests per day
+    - Add as GitHub secret: `WPSCAN_API_TOKEN`
+  - Provides actionable security reports in GitHub Actions logs
+
+---
+
 ### Version 1.6.0
 October 16, 2025
 

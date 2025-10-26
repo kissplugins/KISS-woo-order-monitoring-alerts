@@ -222,20 +222,10 @@ class WooCommerce_Order_Monitor {
         $defaults = \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getActivationDefaults();
 
         // Set default options using centralized defaults
+        // All defaults are now in SettingsDefaults - no hardcoded values here
         foreach ($defaults as $option_name => $default_value) {
             add_option($option_name, $default_value);
         }
-        
-        // Production safety defaults
-        add_option('woom_alert_cooldown', 7200); // 2 hours between alerts
-        add_option('woom_max_daily_alerts', 6); // Maximum 6 alerts per day
-        add_option('woom_last_alert_peak', 0);
-        add_option('woom_last_alert_offpeak', 0);
-        add_option('woom_daily_alert_count', 0);
-        add_option('woom_daily_alert_date', date('Y-m-d'));
-        add_option('woom_enable_system_alerts', 'yes');
-        add_option('woom_webhook_url', '');
-        add_option('woom_query_cache_duration', 300); // 5-minute cache
 
         // Schedule cron if enabled (cron schedule is registered via init_hooks)
         if ('yes' === get_option('woom_enabled')) {
@@ -1272,8 +1262,8 @@ class WooCommerce_Order_Monitor {
      * Render custom fields that WooCommerce doesn't support natively
      */
     private function render_custom_fields() {
-        $last_check = get_option('woom_last_check', 0);
-        $last_alert = get_option('woom_last_alert', 0);
+        $last_check = get_option('woom_last_check', \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('last_check'));
+        $last_alert = get_option('woom_last_alert', \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('last_alert'));
 
         // Get timezone information
         $wp_timezone = function_exists('wp_timezone_string') ? wp_timezone_string() : get_option('timezone_string', 'UTC');
@@ -1698,7 +1688,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'textarea',
                 'desc' => __('Comma-separated email addresses to receive alerts', 'woo-order-monitor'),
                 'id' => 'woom_notification_emails',
-                'default' => get_option('admin_email'),
+                'default' => \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('notification_emails'),
                 'css' => 'width: 400px; height: 75px;'
             ],
 
@@ -1713,7 +1703,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Minimum time between alerts for same threshold type (peak/off-peak)', 'woo-order-monitor'),
                 'id' => 'woom_alert_cooldown_hours',
-                'default' => '2',
+                'default' => (string) (\KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('alert_cooldown') / 3600),
                 'custom_attributes' => [
                     'min' => '0.5',
                     'max' => '24',
@@ -1725,7 +1715,7 @@ class WooCommerce_Order_Monitor {
                 'type' => 'number',
                 'desc' => __('Maximum number of alerts to send per day (prevents email spam)', 'woo-order-monitor'),
                 'id' => 'woom_max_daily_alerts',
-                'default' => '6',
+                'default' => (string) \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('max_daily_alerts'),
                 'custom_attributes' => [
                     'min' => '1',
                     'max' => '50',

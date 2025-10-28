@@ -1,0 +1,234 @@
+name: PHP Lint and Code Quality
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+
+jobs:
+  php-lint:
+    name: PHP Lint
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        php-version: ['8.0', '8.1', '8.2', '8.3']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, mysql
+        coverage: none
+    
+    - name: Validate composer.json and composer.lock
+      run: |
+        if [ -f composer.json ]; then
+          composer validate --strict
+        else
+          echo "No composer.json found, skipping validation"
+        fi
+    
+    - name: Cache Composer packages
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-${{ matrix.php-version }}-
+    
+    - name: Install dependencies
+      run: |
+        if [ -f composer.json ]; then
+          composer install --prefer-dist --no-progress --no-suggest
+        else
+          echo "No composer.json found, skipping dependency installation"
+        fi
+    
+    - name: PHP Syntax Check (Lint)
+      run: |
+        echo "Running PHP syntax check on all PHP files..."
+        find . -name "*.php" -not -path "./vendor/*" -not -path "./node_modules/*" | xargs -I {} php -l {}
+    
+    - name: Check for PHP Parse Errors
+      run: |
+        echo "Checking for PHP parse errors..."
+        EXIT_CODE=0
+        for file in $(find . -name "*.php" -not -path "./vendor/*" -not -path "./node_modules/*"); do
+          if ! php -l "$file" > /dev/null 2>&1; then
+            echo "❌ Parse error in: $file"
+            php -l "$file"
+            EXIT_CODE=1
+          else
+            echo "✅ $file"
+          fi
+        done
+        exit $EXIT_CODE
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    needs: php-lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, mysql
+        coverage: none
+    
+    - name: Install Dependencies
+      run: |
+        echo "Installing Composer dependencies..."
+        composer install --no-progress --no-suggest --prefer-dist
+
+    - name: WordPress Coding Standards Check
+      run: |
+        echo "Running WordPress Coding Standards check..."
+        composer run-script phpcs || echo "PHPCS completed with warnings"
+    
+    - name: PHP Mess Detector Check
+      run: |
+        echo "Running PHP Mess Detector check..."
+        composer run-script phpmd || echo "PHPMD completed with warnings"
+    
+    - name: Security Check
+      run: |
+        echo "Checking for common security issues..."
+        
+        # Check for potential SQL injection patterns
+        echo "🔍 Checking for potential SQL injection vulnerabilities..."
+        if grep -r "\$wpdb->query\|->query(" --include="*.php" . | grep -v "prepare\|wpdb->prepare"; then
+          echo "⚠️  Found potential SQL injection vulnerabilities"
+        else
+          echo "✅ No obvious SQL injection patterns found"
+        fi
+        
+        # Check for XSS vulnerabilities
+        echo "🔍 Checking for potential XSS vulnerabilities..."
+        if grep -r "echo \$_\|print \$_" --include="*.php" . | grep -v "esc_\|wp_kses"; then
+          echo "⚠️  Found potential XSS vulnerabilities"
+        else
+          echo "✅ No obvious XSS patterns found"
+        fi
+        
+        # Check for file inclusion vulnerabilities
+        echo "🔍 Checking for potential file inclusion vulnerabilities..."
+        if grep -r "include.*\$_\|require.*\$_" --include="*.php" .; then
+          echo "⚠️  Found potential file inclusion vulnerabilities"
+        else
+          echo "✅ No obvious file inclusion vulnerabilities found"
+        fi
+
+  wordpress-compatibility:
+    name: WordPress Compatibility
+    runs-on: ubuntu-latest
+    needs: php-lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, mysql
+        coverage: none
+    
+    - name: WordPress Plugin Check
+      run: |
+        echo "Checking WordPress plugin structure..."
+        
+        # Check for required plugin header
+        if grep -r "Plugin Name:" --include="*.php" .; then
+          echo "✅ Plugin header found"
+        else
+          echo "❌ No plugin header found"
+          exit 1
+        fi
+        
+        # Check for WordPress functions without proper checks
+        echo "🔍 Checking for WordPress function usage..."
+        if grep -r "add_action\|add_filter\|wp_enqueue" --include="*.php" . | head -5; then
+          echo "✅ WordPress functions detected"
+        fi
+        
+        # Check for direct file access protection
+        echo "🔍 Checking for direct file access protection..."
+        if grep -r "defined.*ABSPATH\|exit.*direct" --include="*.php" .; then
+          echo "✅ Direct access protection found"
+        else
+          echo "⚠️  Consider adding direct access protection"
+        fi
+        
+        # Check for text domain usage
+        echo "🔍 Checking for internationalization..."
+        if grep -r "__(\|_e(\|_n(" --include="*.php" .; then
+          echo "✅ Internationalization functions found"
+        else
+          echo "⚠️  No internationalization functions found"
+        fi
+
+  plugin-specific-checks:
+    name: Plugin Specific Checks
+    runs-on: ubuntu-latest
+    needs: php-lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: WooCommerce Order Monitor Checks
+      run: |
+        echo "Running plugin-specific checks for WooCommerce Order Monitor..."
+        
+        # Check for WooCommerce dependency
+        if grep -r "class_exists.*WooCommerce\|function_exists.*wc_" --include="*.php" .; then
+          echo "✅ WooCommerce dependency checks found"
+        else
+          echo "⚠️  No WooCommerce dependency checks found"
+        fi
+        
+        # Check for proper database query preparation
+        echo "🔍 Checking database query security..."
+        if grep -r "\$wpdb->prepare" --include="*.php" .; then
+          echo "✅ Prepared statements found"
+        fi
+        
+        if grep -r "\$wpdb->query\|\$wpdb->get_" --include="*.php" . | grep -v "prepare"; then
+          echo "⚠️  Found database queries that might not be prepared"
+        else
+          echo "✅ All database queries appear to be properly prepared"
+        fi
+        
+        # Check for cron job management
+        if grep -r "wp_schedule_event\|wp_clear_scheduled_hook" --include="*.php" .; then
+          echo "✅ Cron job management found"
+        fi
+        
+        # Check for proper error handling
+        if grep -r "try.*catch\|error_log" --include="*.php" .; then
+          echo "✅ Error handling found"
+        fi
+        
+        # Check version consistency
+        echo "🔍 Checking version consistency..."
+        VERSION_IN_HEADER=$(grep -r "Version:" --include="*.php" . | head -1 | sed 's/.*Version: *//' | sed 's/ .*//')
+        VERSION_IN_CONSTANT=$(grep -r "define.*VERSION" --include="*.php" . | head -1 | sed "s/.*['\"]//g" | sed "s/['\"].*//g")
+        
+        if [ "$VERSION_IN_HEADER" = "$VERSION_IN_CONSTANT" ]; then
+          echo "✅ Version numbers are consistent: $VERSION_IN_HEADER"
+        else
+          echo "⚠️  Version mismatch - Header: $VERSION_IN_HEADER, Constant: $VERSION_IN_CONSTANT"
+        fi

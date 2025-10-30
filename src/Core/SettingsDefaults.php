@@ -69,6 +69,12 @@ class SettingsDefaults {
         'rolling_min_orders' => 3, // Minimum orders before alerting
         'rolling_cache_duration' => 300, // 5 minutes in seconds
 
+        // Multi-Block Threshold System - v1.7.0
+        'use_threshold_blocks' => 'no', // Feature flag for gradual rollout
+        'threshold_blocks' => [], // Will be populated by getDefaultThresholdBlocks()
+        'grace_period_seconds' => 1800, // 30 minutes grace period before first alert
+        'first_enabled_timestamp' => 0, // Track when monitoring was first enabled
+
         // Plugin metadata
         'plugin_version' => '',
         'activated_at' => 0,
@@ -77,24 +83,29 @@ class SettingsDefaults {
     
     /**
      * Get all default values for runtime use
-     * 
+     *
      * Used by Settings class and other runtime components.
      * Includes dynamic defaults like admin_email and current date.
-     * 
+     *
      * @return array Complete default values with dynamic values resolved
      */
     public static function getRuntimeDefaults(): array {
         $defaults = self::$master_defaults;
-        
+
         // Set dynamic defaults
         if (empty($defaults['notification_emails'])) {
             $defaults['notification_emails'] = get_option('admin_email', '');
         }
-        
+
         if (empty($defaults['daily_alert_date'])) {
             $defaults['daily_alert_date'] = date('Y-m-d');
         }
-        
+
+        // Populate threshold_blocks with default configuration if empty
+        if (empty($defaults['threshold_blocks'])) {
+            $defaults['threshold_blocks'] = self::getDefaultThresholdBlocks();
+        }
+
         return $defaults;
     }
     
@@ -177,7 +188,13 @@ class SettingsDefaults {
             'rolling_window_size' => ['type' => 'int', 'min' => 3, 'max' => 50],
             'rolling_failure_threshold' => ['type' => 'int', 'min' => 1, 'max' => 100],
             'rolling_min_orders' => ['type' => 'int', 'min' => 1, 'max' => 20],
-            'rolling_cache_duration' => ['type' => 'int', 'min' => 60, 'max' => 3600]
+            'rolling_cache_duration' => ['type' => 'int', 'min' => 60, 'max' => 3600],
+
+            // Multi-Block Threshold System validation rules - v1.7.0
+            'use_threshold_blocks' => ['type' => 'string', 'values' => ['yes', 'no']],
+            'threshold_blocks' => ['type' => 'array'], // Complex validation done separately
+            'grace_period_seconds' => ['type' => 'int', 'min' => 0, 'max' => 7200], // 0 to 2 hours
+            'first_enabled_timestamp' => ['type' => 'int', 'min' => 0]
         ];
     }
     
@@ -194,6 +211,96 @@ class SettingsDefaults {
         return $keys;
     }
     
+    /**
+     * Get default threshold blocks configuration
+     *
+     * Returns the default 8-block threshold configuration based on
+     * BINOID sales report analysis. This provides a sensible starting
+     * point for high-volume e-commerce stores.
+     *
+     * @since 1.7.0
+     * @return array Array of threshold block configurations
+     */
+    public static function getDefaultThresholdBlocks(): array {
+        return [
+            [
+                'name' => 'overnight',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '00:00', 'end' => '04:59']
+                ],
+                'threshold' => 0,
+                'expected_range' => ['min' => 0, 'max' => 1],
+                'alert_on_any_activity' => false
+            ],
+            [
+                'name' => 'morning_surge',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '05:00', 'end' => '07:59']
+                ],
+                'threshold' => 8,
+                'expected_range' => ['min' => 8, 'max' => 12],
+                'critical_threshold' => 4
+            ],
+            [
+                'name' => 'morning_steady',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '08:00', 'end' => '10:59']
+                ],
+                'threshold' => 10,
+                'expected_range' => ['min' => 9, 'max' => 12]
+            ],
+            [
+                'name' => 'lunch_peak',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '11:00', 'end' => '13:59']
+                ],
+                'threshold' => 20,
+                'expected_range' => ['min' => 17, 'max' => 25],
+                'critical_threshold' => 10
+            ],
+            [
+                'name' => 'afternoon_decline',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '14:00', 'end' => '17:59']
+                ],
+                'threshold' => 15,
+                'expected_range' => ['min' => 12, 'max' => 18]
+            ],
+            [
+                'name' => 'evening_plateau',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '18:00', 'end' => '19:59']
+                ],
+                'threshold' => 15,
+                'expected_range' => ['min' => 13, 'max' => 17]
+            ],
+            [
+                'name' => 'evening_decline',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '20:00', 'end' => '21:59']
+                ],
+                'threshold' => 5,
+                'expected_range' => ['min' => 3, 'max' => 8]
+            ],
+            [
+                'name' => 'late_night',
+                'enabled' => true,
+                'time_ranges' => [
+                    ['start' => '22:00', 'end' => '23:59']
+                ],
+                'threshold' => 0,
+                'expected_range' => ['min' => 0, 'max' => 2]
+            ]
+        ];
+    }
+
     /**
      * Validate that no other files define conflicting defaults
      *

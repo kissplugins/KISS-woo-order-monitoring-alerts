@@ -39,59 +39,29 @@ class ThresholdChecker {
     
     /**
      * Check if order count is below threshold
-     * 
+     *
+     * Supports both legacy peak/off-peak mode and new multi-block threshold system.
+     * Automatically detects which mode to use based on use_threshold_blocks setting.
+     *
      * @param int $order_count Current order count
      * @param int|null $minutes Time period in minutes (for context)
      * @return array Check result with status and details
      */
     public function checkThreshold(int $order_count, ?int $minutes = 15): array {
         try {
-            // Determine if we're in peak hours
-            $is_peak = $this->isPeakHours();
-            
-            // Get appropriate threshold
-            $threshold = $this->getActiveThreshold($is_peak);
-            
-            // Validate threshold
-            if (!$this->isValidThreshold($threshold)) {
-                return [
-                    'status' => 'error',
-                    'below_threshold' => false,
-                    'message' => 'Invalid threshold configuration',
-                    'details' => [
-                        'threshold' => $threshold,
-                        'is_peak' => $is_peak,
-                        'error' => 'Threshold must be a non-negative number'
-                    ]
-                ];
+            // Check if multi-block mode is enabled
+            $active_block = $this->getActiveThresholdBlock();
+
+            if ($active_block !== null) {
+                // Use new multi-block threshold system
+                return $this->checkThresholdWithBlock($order_count, $active_block, $minutes);
+            } else {
+                // Use legacy peak/off-peak threshold system
+                return $this->checkThresholdLegacy($order_count, $minutes);
             }
-            
-            // Check if below threshold
-            $below_threshold = $order_count < $threshold;
-            
-            // Calculate percentage of threshold met
-            $threshold_percentage = $threshold > 0 ? ($order_count / $threshold) * 100 : 100;
-            
-            // Determine severity level
-            $severity = $this->calculateSeverity($order_count, $threshold);
-            
-            return [
-                'status' => 'success',
-                'below_threshold' => $below_threshold,
-                'message' => $below_threshold ? 'Order count is below threshold' : 'Order count meets threshold',
-                'details' => [
-                    'order_count' => $order_count,
-                    'threshold' => $threshold,
-                    'is_peak' => $is_peak,
-                    'period_type' => $is_peak ? 'Peak Hours' : 'Off-Peak Hours',
-                    'threshold_percentage' => round($threshold_percentage, 1),
-                    'severity' => $severity,
-                    'time_period_minutes' => $minutes,
-                    'check_time' => current_time('mysql')
-                ]
-            ];
-            
+
         } catch (\Exception $e) {
+            error_log('[WooCommerce Order Monitor] Threshold check exception: ' . $e->getMessage());
             return [
                 'status' => 'error',
                 'below_threshold' => false,
@@ -102,6 +72,108 @@ class ThresholdChecker {
                 ]
             ];
         }
+    }
+
+    /**
+     * Check threshold using legacy peak/off-peak system
+     *
+     * @param int $order_count Current order count
+     * @param int $minutes Time period in minutes
+     * @return array Check result
+     */
+    private function checkThresholdLegacy(int $order_count, int $minutes): array {
+        // Determine if we're in peak hours
+        $is_peak = $this->isPeakHours();
+
+        // Get appropriate threshold
+        $threshold = $this->getActiveThreshold($is_peak);
+
+        // Validate threshold
+        if (!$this->isValidThreshold($threshold)) {
+            return [
+                'status' => 'error',
+                'below_threshold' => false,
+                'message' => 'Invalid threshold configuration',
+                'details' => [
+                    'threshold' => $threshold,
+                    'is_peak' => $is_peak,
+                    'error' => 'Threshold must be a non-negative number'
+                ]
+            ];
+        }
+
+        // Check if below threshold
+        $below_threshold = $order_count < $threshold;
+
+        // Calculate percentage of threshold met
+        $threshold_percentage = $threshold > 0 ? ($order_count / $threshold) * 100 : 100;
+
+        // Determine severity level
+        $severity = $this->calculateSeverity($order_count, $threshold);
+
+        return [
+            'status' => 'success',
+            'below_threshold' => $below_threshold,
+            'message' => $below_threshold ? 'Order count is below threshold' : 'Order count meets threshold',
+            'details' => [
+                'order_count' => $order_count,
+                'threshold' => $threshold,
+                'is_peak' => $is_peak,
+                'period_type' => $is_peak ? 'Peak Hours' : 'Off-Peak Hours',
+                'threshold_percentage' => round($threshold_percentage, 1),
+                'severity' => $severity,
+                'time_period_minutes' => $minutes,
+                'check_time' => current_time('mysql'),
+                'mode' => 'legacy'
+            ]
+        ];
+    }
+
+    /**
+     * Check threshold using multi-block system
+     *
+     * @param int $order_count Current order count
+     * @param array $block Active threshold block configuration
+     * @param int $minutes Time period in minutes
+     * @return array Check result
+     */
+    private function checkThresholdWithBlock(int $order_count, array $block, int $minutes): array {
+        $threshold = (int) ($block['threshold'] ?? 0);
+        $critical_threshold = isset($block['critical_threshold']) ? (int) $block['critical_threshold'] : null;
+        $expected_range = $block['expected_range'] ?? null;
+
+        // Determine severity and if below threshold
+        $severity = 'normal';
+        $below_threshold = false;
+
+        if ($critical_threshold !== null && $order_count < $critical_threshold) {
+            $severity = 'critical';
+            $below_threshold = true;
+        } elseif ($order_count < $threshold) {
+            $severity = 'warning';
+            $below_threshold = true;
+        }
+
+        // Calculate percentage of threshold met
+        $threshold_percentage = $threshold > 0 ? ($order_count / $threshold) * 100 : 100;
+
+        return [
+            'status' => 'success',
+            'below_threshold' => $below_threshold,
+            'message' => $below_threshold ? 'Order count below threshold' : 'Order count normal',
+            'details' => [
+                'order_count' => $order_count,
+                'threshold' => $threshold,
+                'critical_threshold' => $critical_threshold,
+                'severity' => $severity,
+                'block_name' => $block['name'] ?? 'unknown',
+                'expected_range' => $expected_range,
+                'threshold_percentage' => round($threshold_percentage, 1),
+                'time_period_minutes' => $minutes,
+                'check_time' => current_time('mysql'),
+                'mode' => 'multi-block'
+            ]
+        ];
     }
     
     /**
@@ -140,8 +212,111 @@ class ThresholdChecker {
     }
     
     /**
-     * Get the active threshold based on peak hours
-     * 
+     * Get the active threshold block for current time
+     *
+     * Returns the first matching threshold block based on current time.
+     * Returns null if multi-block mode is disabled or no blocks match.
+     *
+     * @since 1.7.0
+     * @param string|null $time Time to check (HH:MM format), null for current time
+     * @return array|null Active block configuration or null
+     */
+    public function getActiveThresholdBlock(?string $time = null): ?array {
+        // Check if block mode is enabled
+        if ($this->settings->get('use_threshold_blocks') !== 'yes') {
+            return null; // Fall back to legacy mode
+        }
+
+        $blocks = $this->settings->get('threshold_blocks', []);
+
+        if (empty($blocks)) {
+            return null;
+        }
+
+        // Get current time if not provided
+        if ($time === null) {
+            $time = current_time('H:i');
+        }
+
+        // Find first matching block
+        foreach ($blocks as $block) {
+            if (!isset($block['enabled']) || !$block['enabled']) {
+                continue; // Skip disabled blocks
+            }
+
+            if ($this->isTimeInBlock($time, $block)) {
+                return $block;
+            }
+        }
+
+        return null; // No matching block
+    }
+
+    /**
+     * Check if time falls within block's time ranges
+     *
+     * Handles time ranges that span midnight (e.g., 22:00-05:59).
+     *
+     * @since 1.7.0
+     * @param string $time Time to check (HH:MM format)
+     * @param array $block Block configuration
+     * @return bool True if time is in block
+     */
+    private function isTimeInBlock(string $time, array $block): bool {
+        if (!isset($block['time_ranges']) || !is_array($block['time_ranges'])) {
+            return false;
+        }
+
+        foreach ($block['time_ranges'] as $range) {
+            if (!isset($range['start']) || !isset($range['end'])) {
+                continue;
+            }
+
+            $start = $range['start'];
+            $end = $range['end'];
+
+            // Handle ranges that span midnight
+            if ($end < $start) {
+                // e.g., 22:00 to 05:59
+                if ($time >= $start || $time < $end) {
+                    return true;
+                }
+            } else {
+                // Normal range e.g., 09:00 to 18:00
+                if ($time >= $start && $time < $end) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get threshold for current time (block-aware)
+     *
+     * Returns threshold from active block if multi-block mode is enabled,
+     * otherwise falls back to legacy peak/off-peak threshold.
+     *
+     * @since 1.7.0
+     * @return int Threshold value
+     */
+    public function getCurrentThreshold(): int {
+        // Try block-based threshold first
+        $block = $this->getActiveThresholdBlock();
+
+        if ($block !== null && isset($block['threshold'])) {
+            return (int) $block['threshold'];
+        }
+
+        // Fall back to legacy peak/off-peak
+        $is_peak = $this->isPeakHours();
+        return $this->getActiveThreshold($is_peak);
+    }
+
+    /**
+     * Get the active threshold based on peak hours (legacy method)
+     *
      * @param bool|null $is_peak Whether it's peak hours, or null to auto-detect
      * @return int Active threshold value
      */
@@ -149,9 +324,9 @@ class ThresholdChecker {
         if ($is_peak === null) {
             $is_peak = $this->isPeakHours();
         }
-        
+
         $thresholds = $this->settings->getThresholds();
-        
+
         return $is_peak ? $thresholds['peak'] : $thresholds['offpeak'];
     }
     

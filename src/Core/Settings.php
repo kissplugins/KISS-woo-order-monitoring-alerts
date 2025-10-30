@@ -172,7 +172,7 @@ class Settings {
                     return false;
                 }
                 break;
-                
+
             case 'int':
                 $value = (int) $value;
                 if (isset($rule['min']) && $value < $rule['min']) {
@@ -182,20 +182,32 @@ class Settings {
                     return false;
                 }
                 break;
-                
+
             case 'time':
                 if (!$this->isValidTimeFormat($value)) {
                     return false;
                 }
                 break;
-                
+
             case 'email_list':
                 if (!$this->isValidEmailList($value)) {
                     return false;
                 }
                 break;
+
+            case 'array':
+                // Special handling for threshold_blocks
+                if ($key === 'threshold_blocks') {
+                    if (!is_array($value)) {
+                        return false;
+                    }
+                    if (!$this->validateThresholdBlocks($value)) {
+                        return false;
+                    }
+                }
+                break;
         }
-        
+
         return $value;
     }
     
@@ -312,12 +324,78 @@ class Settings {
             'offpeak' => $this->get('threshold_offpeak')
         ];
     }
-    
+
+    /**
+     * Get threshold blocks configuration
+     *
+     * Returns the configured threshold blocks for multi-block monitoring.
+     * If blocks are not configured, returns default blocks.
+     *
+     * @since 1.7.0
+     * @return array Array of threshold block configurations
+     */
+    public function getThresholdBlocks(): array {
+        $blocks = $this->get('threshold_blocks', []);
+
+        // If empty, return default blocks
+        if (empty($blocks)) {
+            $blocks = SettingsDefaults::getDefaultThresholdBlocks();
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * Validate threshold blocks array
+     *
+     * Ensures each block has required fields and valid values.
+     *
+     * @since 1.7.0
+     * @param array $blocks Array of threshold blocks to validate
+     * @return bool True if valid
+     */
+    public function validateThresholdBlocks(array $blocks): bool {
+        if (empty($blocks)) {
+            return true; // Empty is valid (will use defaults)
+        }
+
+        foreach ($blocks as $block) {
+            // Required fields
+            if (!isset($block['name']) || !isset($block['time_ranges']) || !isset($block['threshold'])) {
+                return false;
+            }
+
+            // Validate time_ranges
+            if (!is_array($block['time_ranges']) || empty($block['time_ranges'])) {
+                return false;
+            }
+
+            foreach ($block['time_ranges'] as $range) {
+                if (!isset($range['start']) || !isset($range['end'])) {
+                    return false;
+                }
+
+                // Validate time format (HH:MM)
+                if (!preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]$/', $range['start']) ||
+                    !preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]$/', $range['end'])) {
+                    return false;
+                }
+            }
+
+            // Validate threshold is non-negative integer
+            if (!is_numeric($block['threshold']) || $block['threshold'] < 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * Clear settings cache
-     * 
+     *
      * Forces settings to be reloaded from database on next access.
-     * 
+     *
      * @return void
      */
     public function clearCache(): void {

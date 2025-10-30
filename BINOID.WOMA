@@ -1,0 +1,245 @@
+# WooCommerce Order Monitor Configuration
+# Profile: BINOID High-Volume E-commerce
+# Version: 1.7.0
+# Created: 2025-10-30
+# Based on: BINOID-SALES-REPORT.md analysis (2,273 orders over 48 hours)
+
+# ============================================================================
+# CORE MONITORING SETTINGS
+# ============================================================================
+monitoring:
+  enabled: true
+  mode: hybrid  # Both time_based and rolling_average active
+
+  # Notification settings
+  notifications:
+    emails:
+      - admin@binoid.com
+      - alerts@binoid.com
+    webhook_url: ""  # Optional: Slack/Discord webhook
+    enable_system_alerts: true
+
+  # Alert throttling to prevent spam
+  throttling:
+    cooldown_seconds: 7200  # 2 hours between similar alerts
+    max_daily_alerts: 6     # Maximum 6 alerts per day
+    grace_period_seconds: 1800  # 30 min grace period after enabling
+
+# ============================================================================
+# TIME-BASED MONITORING - MULTI-BLOCK THRESHOLDS
+# ============================================================================
+time_based:
+  enabled: true
+  use_threshold_blocks: true  # Use new multi-block system
+
+  # Legacy settings (kept for backward compatibility, not used when blocks enabled)
+  legacy:
+    peak_start: "09:00"
+    peak_end: "18:00"
+    threshold_peak: 10
+    threshold_offpeak: 2
+
+  # Multi-block threshold system based on BINOID traffic patterns
+  # Data shows 5 distinct daily phases with predictable transitions
+  threshold_blocks:
+    
+    # Block 1: Overnight (12 AM - 5 AM)
+    # Pattern: Zero activity, 0 orders/hour
+    - name: overnight
+      enabled: true
+      time_ranges:
+        - start: "00:00"
+          end: "04:59"
+      threshold: 0  # No alerts during zero-activity period
+      expected_range:
+        min: 0
+        max: 1
+      alert_on_any_activity: false  # Don't alert on occasional overnight orders
+
+    # Block 2: Morning Surge (5 AM - 8 AM)
+    # Pattern: Rapid growth from 0 to 30-50 orders/hour
+    # Critical transition point at 5 AM
+    - name: morning_surge
+      enabled: true
+      time_ranges:
+        - start: "05:00"
+          end: "07:59"
+      threshold: 8  # ~30-50 orders/hour = 8-12 orders/15min
+      expected_range:
+        min: 8
+        max: 12
+      critical_threshold: 4  # Critical alert if below 4 orders/15min
+
+    # Block 3: Morning Steady (8 AM - 11 AM)
+    # Pattern: Stable 37-48 orders/hour
+    # CV: 14% (very predictable)
+    - name: morning_steady
+      enabled: true
+      time_ranges:
+        - start: "08:00"
+          end: "10:59"
+      threshold: 10  # ~37-48 orders/hour = 9-12 orders/15min
+      expected_range:
+        min: 9
+        max: 12
+
+    # Block 4: Lunch Peak (11 AM - 2 PM)
+    # Pattern: Peak activity, 67-101 orders/hour
+    # Critical business period - most sensitive monitoring
+    - name: lunch_peak
+      enabled: true
+      time_ranges:
+        - start: "11:00"
+          end: "13:59"
+      threshold: 20  # ~67-101 orders/hour = 17-25 orders/15min
+      expected_range:
+        min: 17
+        max: 25
+      critical_threshold: 10  # Critical if below 10 orders/15min during peak
+
+    # Block 5: Afternoon Decline (2 PM - 6 PM)
+    # Pattern: Gradual decline from 90 to 63 orders/hour
+    # Sharp transition at 2 PM (was causing false positives)
+    - name: afternoon_decline
+      enabled: true
+      time_ranges:
+        - start: "14:00"
+          end: "17:59"
+      threshold: 15  # ~66-90 orders/hour = 12-18 orders/15min
+      expected_range:
+        min: 12
+        max: 18
+
+    # Block 6: Evening Plateau (6 PM - 8 PM)
+    # Pattern: Stable 63-65 orders/hour
+    # CV: 15% (predictable)
+    - name: evening_plateau
+      enabled: true
+      time_ranges:
+        - start: "18:00"
+          end: "19:59"
+      threshold: 15  # ~63-65 orders/hour = 13-17 orders/15min
+      expected_range:
+        min: 13
+        max: 17
+
+    # Block 7: Evening Decline (8 PM - 10 PM)
+    # Pattern: Rapid decline from 44 to 22 orders/hour
+    # Transition at 8 PM
+    - name: evening_decline
+      enabled: true
+      time_ranges:
+        - start: "20:00"
+          end: "21:59"
+      threshold: 5  # ~22-44 orders/hour = 3-8 orders/15min
+      expected_range:
+        min: 3
+        max: 8
+
+    # Block 8: Late Night (10 PM - 12 AM)
+    # Pattern: Minimal activity, approaching zero
+    - name: late_night
+      enabled: true
+      time_ranges:
+        - start: "22:00"
+          end: "23:59"
+      threshold: 0  # ~0-5 orders/hour
+      expected_range:
+        min: 0
+        max: 2
+
+# ============================================================================
+# ROLLING AVERAGE DETECTION (RAD)
+# Monitors failure rate of recent orders
+# ============================================================================
+rolling_average:
+  enabled: true
+  window_size: 10  # Track last 10 orders
+  failure_threshold: 70  # Alert if 70% or more orders fail
+  min_orders: 3  # Need at least 3 orders before alerting
+  cache_duration: 300  # Cache for 5 minutes
+
+  # Order statuses that count as "failed"
+  failure_statuses:
+    - failed
+    - cancelled
+    - refunded
+
+  # Order statuses that count as "successful"
+  success_statuses:
+    - completed
+    - processing
+
+# ============================================================================
+# ADVANCED SETTINGS
+# ============================================================================
+advanced:
+  # Performance optimization
+  query_cache_duration: 300  # Cache queries for 5 minutes
+
+  # Escalation logic - increase severity based on duration
+  escalation:
+    enabled: true
+    levels:
+      - duration_minutes: 15
+        severity: warning
+        subject_prefix: "[Warning]"
+      
+      - duration_minutes: 30
+        severity: alert
+        subject_prefix: "[Alert]"
+      
+      - duration_minutes: 45
+        severity: critical
+        subject_prefix: "[CRITICAL]"
+
+  # Diagnostic hints in alert emails
+  diagnostics:
+    enabled: true
+    include_failed_order_rate: true
+    include_payment_gateway_status: true
+    include_recent_changes: true
+    include_server_metrics: false  # Requires additional monitoring
+
+  # Alert email templates
+  alert_templates:
+    time_based: "detailed"  # Options: default, detailed, minimal
+    rolling_average: "detailed"
+
+# ============================================================================
+# MAINTENANCE WINDOWS
+# Disable alerts during scheduled maintenance
+# ============================================================================
+maintenance_windows: []
+  # Example:
+  # - start: "2025-11-01 02:00:00"
+  #   end: "2025-11-01 04:00:00"
+  #   reason: "Server maintenance"
+  #   disable_alerts: true
+
+# ============================================================================
+# METADATA (Auto-generated)
+# ============================================================================
+metadata:
+  config_version: "1.7.0"
+  profile_name: "binoid-high-volume"
+  created_at: "2025-10-30 14:30:00"
+  last_modified: "2025-10-30 14:30:00"
+  wordpress_site_url: "https://binoid.com"
+  
+  # Configuration notes
+  notes: |
+    This configuration is based on analysis of 2,273 orders over 48 hours.
+    
+    Key findings:
+    - 5 distinct daily phases with sharp transitions
+    - 10x variation between peak (101/hr) and off-peak (0/hr)
+    - CV of 14-15% during stable periods (very predictable)
+    - Critical transition points: 5 AM, 10 AM, 1 PM, 2 PM, 8 PM
+    
+    Expected benefits:
+    - 70-90% reduction in false positives
+    - 15-30 minutes faster issue detection
+    - No more overnight false alerts
+    - Better context in alerts (expected vs actual ranges)
+

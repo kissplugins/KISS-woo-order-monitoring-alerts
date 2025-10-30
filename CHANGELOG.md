@@ -1,5 +1,114 @@
 ## Changelog
 
+### Version 1.7.1
+October 30, 2025
+
+**🎨 NEW FEATURE: Multi-Block Admin UI**
+- **Visual Threshold Configuration** - Intuitive admin interface for multi-block threshold system
+  - Preset selector with 4 built-in configurations (BINOID, Standard Retail, 24/7, Custom)
+  - Interactive table editor for customizing time blocks
+  - Real-time validation and updates
+  - One-click preset loading
+- **Preset Configurations** - Pre-configured threshold profiles for different store types
+  - **BINOID**: High-volume e-commerce (2,273 orders/48hrs) - 8 blocks optimized for distinct traffic phases
+  - **Standard Retail**: Traditional 9-5 business hours - 8 blocks for typical retail patterns
+  - **24/7 Store**: Always-open stores - 7 blocks for consistent 24-hour traffic
+  - **Custom**: Start with BINOID defaults and customize to your needs
+- **Simplified Settings** - Removed legacy peak/off-peak UI
+  - Multi-block mode enabled by default for all new configurations
+  - Email and alert settings preserved
+  - Cleaner, more focused admin interface
+
+**✨ Improvements:**
+- **ThresholdPresets Class** - New preset management system (`src/Core/ThresholdPresets.php`)
+  - `getAllPresets()` - Returns all available preset configurations
+  - `getPreset($key)` - Get specific preset by key
+  - `getPresetOptions()` - Get preset dropdown options
+  - Extensible architecture for adding custom presets
+- **Enhanced Settings Page** - Updated admin UI (`src/Admin/SettingsPage.php`)
+  - `renderMultiBlockThresholdEditor()` - Renders preset selector and block table
+  - `renderBlockRows()` - Generates editable table rows for each block
+  - `handleMultiBlockUpdate()` - Processes and validates block submissions
+  - JavaScript-powered preset loading and real-time updates
+- **Auto-Enable Multi-Block** - New installations automatically use multi-block mode
+  - `use_threshold_blocks` set to `yes` by default
+  - Legacy mode still available for backward compatibility
+
+**🎨 UI/UX Enhancements:**
+- **Preset Selector** - Dropdown with 4 preset options + "Load Preset" button
+- **Blocks Table** - Editable table with columns:
+  - Enabled (checkbox) - Enable/disable individual blocks
+  - Block Name (readonly) - Descriptive block identifier
+  - Start Time (time input) - Block start time (HH:MM)
+  - End Time (time input) - Block end time (HH:MM)
+  - Threshold (number) - Minimum expected orders
+  - Critical (number) - Critical threshold for escalated alerts
+  - Expected Range (min-max) - Expected order range for anomaly detection
+- **Visual Styling** - Clean, professional admin interface
+  - Light gray background for editor section
+  - Striped table rows for better readability
+  - Responsive input fields
+  - Clear visual hierarchy
+
+**🔧 Technical Changes:**
+- **src/Core/ThresholdPresets.php** (NEW FILE, 300 lines)
+  - Centralized preset management
+  - 4 built-in presets with detailed configurations
+  - Extensible for custom presets
+- **src/Admin/SettingsPage.php** (Modified, +200 lines)
+  - Removed legacy peak/off-peak fields (lines 219-264 removed)
+  - Added multi-block threshold editor (lines 320-555 added)
+  - Added JavaScript for preset loading and dynamic updates
+  - Added CSS styling for multi-block UI
+  - Auto-saves blocks as JSON in hidden field
+- **kiss-woo-order-monitoring-alerts.php** (2 lines)
+  - Updated plugin version to 1.7.1
+  - Updated WOOM_VERSION constant to 1.7.1
+
+**📊 Preset Details:**
+
+**BINOID Preset (High-Volume E-Commerce):**
+- overnight (00:00-04:59): 0 orders
+- morning_surge (05:00-07:59): 8 orders
+- morning_steady (08:00-10:59): 10 orders
+- lunch_peak (11:00-13:59): 20 orders
+- afternoon_decline (14:00-17:59): 15 orders
+- evening_plateau (18:00-19:59): 15 orders
+- evening_decline (20:00-21:59): 5 orders
+- late_night (22:00-23:59): 0 orders
+
+**Standard Retail Preset (9-5 Business):**
+- overnight (00:00-07:59): 0 orders
+- morning_opening (08:00-09:59): 3 orders
+- morning_business (10:00-11:59): 5 orders
+- lunch_hour (12:00-13:59): 8 orders
+- afternoon_business (14:00-16:59): 5 orders
+- closing_time (17:00-18:59): 2 orders
+- evening (19:00-21:59): 0 orders
+- late_night (22:00-23:59): 0 orders
+
+**24/7 Store Preset (Always Open):**
+- late_night (00:00-05:59): 3 orders
+- early_morning (06:00-08:59): 5 orders
+- morning (09:00-11:59): 8 orders
+- midday (12:00-14:59): 10 orders
+- afternoon (15:00-17:59): 8 orders
+- evening (18:00-20:59): 6 orders
+- night (21:00-23:59): 4 orders
+
+**🔄 Migration Notes:**
+- Existing users: Settings preserved, multi-block UI available immediately
+- New users: BINOID preset loaded by default
+- All users: Can switch presets or customize blocks at any time
+
+**📈 Expected Impact:**
+- **Faster configuration** - Load preset in 1 click vs. manual entry
+- **Better defaults** - Pre-configured for common store types
+- **Easier customization** - Visual table editor vs. individual fields
+- **Reduced errors** - Validation and preset templates prevent misconfiguration
+
+---
+
 ### Version 1.7.0
 October 30, 2025
 

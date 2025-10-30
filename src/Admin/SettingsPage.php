@@ -13,6 +13,7 @@ namespace KissPlugins\WooOrderMonitor\Admin;
 
 use KissPlugins\WooOrderMonitor\Core\Settings;
 use KissPlugins\WooOrderMonitor\Core\SettingsDefaults;
+use KissPlugins\WooOrderMonitor\Core\ThresholdPresets;
 
 /**
  * Settings Page Class
@@ -216,52 +217,6 @@ class SettingsPage {
                 'id' => 'woom_enabled',
                 'default' => $defaults['enabled']
             ],
-            'peak_start' => [
-                'name' => __('Peak Hours Start', 'woo-order-monitor'),
-                'type' => 'text',
-                'desc' => __('Start time for peak hours (24-hour format, e.g., 09:00)', 'woo-order-monitor'),
-                'id' => 'woom_peak_start',
-                'default' => $defaults['peak_start'],
-                'css' => 'width: 100px;',
-                'custom_attributes' => [
-                    'pattern' => '^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
-                    'placeholder' => $defaults['peak_start']
-                ]
-            ],
-            'peak_end' => [
-                'name' => __('Peak Hours End', 'woo-order-monitor'),
-                'type' => 'text',
-                'desc' => __('End time for peak hours (24-hour format, e.g., 17:00)', 'woo-order-monitor'),
-                'id' => 'woom_peak_end',
-                'default' => $defaults['peak_end'],
-                'css' => 'width: 100px;',
-                'custom_attributes' => [
-                    'pattern' => '^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
-                    'placeholder' => $defaults['peak_end']
-                ]
-            ],
-            'peak_threshold' => [
-                'name' => __('Peak Hours Minimum Orders', 'woo-order-monitor'),
-                'type' => 'number',
-                'desc' => __('Minimum number of orders expected during peak hours (15-minute period)', 'woo-order-monitor'),
-                'id' => 'woom_peak_threshold',
-                'default' => $defaults['threshold_peak'],
-                'custom_attributes' => [
-                    'min' => 0,
-                    'step' => 1
-                ]
-            ],
-            'off_peak_threshold' => [
-                'name' => __('Off-Peak Hours Minimum Orders', 'woo-order-monitor'),
-                'type' => 'number',
-                'desc' => __('Minimum number of orders expected during off-peak hours (15-minute period)', 'woo-order-monitor'),
-                'id' => 'woom_off_peak_threshold',
-                'default' => $defaults['threshold_offpeak'],
-                'custom_attributes' => [
-                    'min' => 0,
-                    'step' => 1
-                ]
-            ],
             'notification_emails' => [
                 'name' => __('Notification Emails', 'woo-order-monitor'),
                 'type' => 'textarea',
@@ -269,6 +224,28 @@ class SettingsPage {
                 'id' => 'woom_notification_emails',
                 'default' => $defaults['notification_emails'],
                 'css' => 'width: 400px; height: 100px;'
+            ],
+            'alert_cooldown' => [
+                'name' => __('Alert Cooldown', 'woo-order-monitor'),
+                'type' => 'number',
+                'desc' => __('Minimum seconds between alerts (prevents alert spam)', 'woo-order-monitor'),
+                'id' => 'woom_alert_cooldown',
+                'default' => $defaults['alert_cooldown'],
+                'custom_attributes' => [
+                    'min' => 0,
+                    'step' => 60
+                ]
+            ],
+            'max_daily_alerts' => [
+                'name' => __('Max Daily Alerts', 'woo-order-monitor'),
+                'type' => 'number',
+                'desc' => __('Maximum number of alerts per day (0 = unlimited)', 'woo-order-monitor'),
+                'id' => 'woom_max_daily_alerts',
+                'default' => $defaults['max_daily_alerts'],
+                'custom_attributes' => [
+                    'min' => 0,
+                    'step' => 1
+                ]
             ],
             'section_end' => [
                 'type' => 'sectionend',
@@ -340,6 +317,16 @@ class SettingsPage {
     private function renderCustomFields(): void {
         ?>
         <table class="form-table">
+            <!-- Multi-Block Threshold Configuration -->
+            <tr valign="top">
+                <th scope="row" class="titledesc">
+                    <label for="woom_threshold_preset"><?php _e('Threshold Configuration', 'woo-order-monitor'); ?></label>
+                </th>
+                <td class="forminp">
+                    <?php $this->renderMultiBlockThresholdEditor(); ?>
+                </td>
+            </tr>
+
             <tr valign="top">
                 <th scope="row" class="titledesc">
                     <label for="woom_test_notification"><?php _e('Test Notification', 'woo-order-monitor'); ?></label>
@@ -400,24 +387,213 @@ class SettingsPage {
         // Show next cron run if available
         $next_cron = wp_next_scheduled('woom_check_orders');
         if ($next_cron): ?>
-            <p><strong><?php _e('Next Check:', 'woo-order-monitor'); ?></strong> 
+            <p><strong><?php _e('Next Check:', 'woo-order-monitor'); ?></strong>
                 <?php echo esc_html(date('Y-m-d H:i:s', $next_cron)); ?>
             </p>
         <?php endif; ?>
         <?php
     }
-    
+
+    /**
+     * Render multi-block threshold editor
+     *
+     * @return void
+     */
+    private function renderMultiBlockThresholdEditor(): void {
+        // Get current blocks or defaults
+        $current_blocks = $this->settings->get('threshold_blocks', []);
+        if (empty($current_blocks)) {
+            $current_blocks = SettingsDefaults::getDefaultThresholdBlocks();
+        }
+
+        // Get preset options
+        $preset_options = ThresholdPresets::getPresetOptions();
+
+        // Determine current preset (default to BINOID)
+        $current_preset = 'binoid';
+
+        ?>
+        <div class="woom-multiblock-editor">
+            <!-- Preset Selector -->
+            <div class="woom-preset-selector" style="margin-bottom: 20px;">
+                <label for="woom_threshold_preset" style="font-weight: bold; display: block; margin-bottom: 8px;">
+                    <?php _e('Select Preset:', 'woo-order-monitor'); ?>
+                </label>
+                <select id="woom_threshold_preset" name="woom_threshold_preset" style="width: 400px;">
+                    <?php foreach ($preset_options as $key => $label): ?>
+                        <option value="<?php echo esc_attr($key); ?>" <?php selected($current_preset, $key); ?>>
+                            <?php echo esc_html($label); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="button" id="woom_load_preset" class="button-secondary" style="margin-left: 10px;">
+                    <?php _e('Load Preset', 'woo-order-monitor'); ?>
+                </button>
+                <p class="description">
+                    <?php _e('Choose a preset configuration or create your own custom blocks.', 'woo-order-monitor'); ?>
+                </p>
+            </div>
+
+            <!-- Threshold Blocks Table -->
+            <div class="woom-blocks-table-wrapper" style="margin-top: 20px;">
+                <h4><?php _e('Time Blocks Configuration', 'woo-order-monitor'); ?></h4>
+                <p class="description" style="margin-bottom: 15px;">
+                    <?php _e('Configure threshold values for each time block. Thresholds represent the minimum expected orders in a 15-minute period.', 'woo-order-monitor'); ?>
+                </p>
+
+                <table class="widefat woom-blocks-table" style="max-width: 900px;">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;"><?php _e('Enabled', 'woo-order-monitor'); ?></th>
+                            <th style="width: 150px;"><?php _e('Block Name', 'woo-order-monitor'); ?></th>
+                            <th style="width: 120px;"><?php _e('Start Time', 'woo-order-monitor'); ?></th>
+                            <th style="width: 120px;"><?php _e('End Time', 'woo-order-monitor'); ?></th>
+                            <th style="width: 100px;"><?php _e('Threshold', 'woo-order-monitor'); ?></th>
+                            <th style="width: 100px;"><?php _e('Critical', 'woo-order-monitor'); ?></th>
+                            <th><?php _e('Expected Range', 'woo-order-monitor'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody id="woom_blocks_tbody">
+                        <?php $this->renderBlockRows($current_blocks); ?>
+                    </tbody>
+                </table>
+
+                <input type="hidden" name="woom_threshold_blocks_json" id="woom_threshold_blocks_json" value="<?php echo esc_attr(json_encode($current_blocks)); ?>" />
+                <input type="hidden" name="woom_use_threshold_blocks" value="yes" />
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Render block rows for the threshold table
+     *
+     * @param array $blocks Array of threshold blocks
+     * @return void
+     */
+    private function renderBlockRows(array $blocks): void {
+        foreach ($blocks as $index => $block) {
+            $enabled = isset($block['enabled']) ? $block['enabled'] : true;
+            $name = isset($block['name']) ? $block['name'] : '';
+            $start_time = isset($block['time_ranges'][0]['start']) ? $block['time_ranges'][0]['start'] : '00:00';
+            $end_time = isset($block['time_ranges'][0]['end']) ? $block['time_ranges'][0]['end'] : '00:00';
+            $threshold = isset($block['threshold']) ? $block['threshold'] : 0;
+            $critical = isset($block['critical_threshold']) ? $block['critical_threshold'] : 0;
+            $min_range = isset($block['expected_range']['min']) ? $block['expected_range']['min'] : 0;
+            $max_range = isset($block['expected_range']['max']) ? $block['expected_range']['max'] : 0;
+
+            ?>
+            <tr class="woom-block-row" data-index="<?php echo esc_attr($index); ?>">
+                <td style="text-align: center;">
+                    <input type="checkbox"
+                           class="woom-block-enabled"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           <?php checked($enabled, true); ?> />
+                </td>
+                <td>
+                    <input type="text"
+                           class="woom-block-name"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           value="<?php echo esc_attr($name); ?>"
+                           style="width: 100%;"
+                           readonly />
+                </td>
+                <td>
+                    <input type="time"
+                           class="woom-block-start"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           value="<?php echo esc_attr($start_time); ?>"
+                           style="width: 100%;" />
+                </td>
+                <td>
+                    <input type="time"
+                           class="woom-block-end"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           value="<?php echo esc_attr($end_time); ?>"
+                           style="width: 100%;" />
+                </td>
+                <td>
+                    <input type="number"
+                           class="woom-block-threshold"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           value="<?php echo esc_attr($threshold); ?>"
+                           min="0"
+                           step="1"
+                           style="width: 100%;" />
+                </td>
+                <td>
+                    <input type="number"
+                           class="woom-block-critical"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           value="<?php echo esc_attr($critical); ?>"
+                           min="0"
+                           step="1"
+                           style="width: 100%;" />
+                </td>
+                <td>
+                    <input type="number"
+                           class="woom-block-min"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           value="<?php echo esc_attr($min_range); ?>"
+                           min="0"
+                           step="1"
+                           style="width: 60px;"
+                           placeholder="Min" />
+                    -
+                    <input type="number"
+                           class="woom-block-max"
+                           data-index="<?php echo esc_attr($index); ?>"
+                           value="<?php echo esc_attr($max_range); ?>"
+                           min="0"
+                           step="1"
+                           style="width: 60px;"
+                           placeholder="Max" />
+                </td>
+            </tr>
+            <?php
+        }
+    }
+
     /**
      * Update settings
-     * 
+     *
      * @return void
      */
     public function updateSettings(): void {
         // Use WooCommerce's built-in settings update
         woocommerce_update_options($this->getSettingsFields());
-        
+
+        // Handle multi-block threshold blocks
+        $this->handleMultiBlockUpdate();
+
         // Handle any custom post-update logic
         $this->handleSettingsUpdate();
+    }
+
+    /**
+     * Handle multi-block threshold blocks update
+     *
+     * @return void
+     */
+    private function handleMultiBlockUpdate(): void {
+        // Check if multi-block data was submitted
+        if (isset($_POST['woom_threshold_blocks_json'])) {
+            $blocks_json = sanitize_text_field(wp_unslash($_POST['woom_threshold_blocks_json']));
+            $blocks = json_decode($blocks_json, true);
+
+            if (is_array($blocks) && !empty($blocks)) {
+                // Validate blocks
+                if ($this->settings->validateThresholdBlocks($blocks)) {
+                    // Save blocks
+                    update_option('woom_threshold_blocks', $blocks);
+                }
+            }
+        }
+
+        // Enable multi-block mode if submitted
+        if (isset($_POST['woom_use_threshold_blocks'])) {
+            update_option('woom_use_threshold_blocks', 'yes');
+        }
     }
     
     /**
@@ -572,10 +748,124 @@ class SettingsPage {
         .woom-changelog-viewer ul {
             margin-left: 20px;
         }
+        .woom-multiblock-editor {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 4px;
+        }
+        .woom-blocks-table {
+            background: #fff;
+        }
+        .woom-blocks-table th {
+            background: #f1f1f1;
+            font-weight: 600;
+            padding: 10px;
+        }
+        .woom-blocks-table td {
+            padding: 8px;
+        }
+        .woom-block-row input[type="time"],
+        .woom-block-row input[type="number"] {
+            padding: 4px;
+        }
         </style>
 
         <script type="text/javascript">
         jQuery(document).ready(function($) {
+            // Preset configurations
+            var presets = <?php echo json_encode(ThresholdPresets::getAllPresets()); ?>;
+
+            // Load preset button handler
+            $('#woom_load_preset').on('click', function(e) {
+                e.preventDefault();
+
+                var presetKey = $('#woom_threshold_preset').val();
+                var preset = presets[presetKey];
+
+                if (!preset || !preset.blocks) {
+                    alert('<?php echo esc_js(__('Invalid preset selected', 'woo-order-monitor')); ?>');
+                    return;
+                }
+
+                // Update table with preset blocks
+                updateBlocksTable(preset.blocks);
+
+                // Update hidden JSON field
+                updateBlocksJSON();
+
+                alert('<?php echo esc_js(__('Preset loaded successfully! Don\'t forget to save your changes.', 'woo-order-monitor')); ?>');
+            });
+
+            // Update blocks table with new data
+            function updateBlocksTable(blocks) {
+                var $tbody = $('#woom_blocks_tbody');
+                $tbody.empty();
+
+                $.each(blocks, function(index, block) {
+                    var enabled = block.enabled !== false;
+                    var name = block.name || '';
+                    var startTime = block.time_ranges && block.time_ranges[0] ? block.time_ranges[0].start : '00:00';
+                    var endTime = block.time_ranges && block.time_ranges[0] ? block.time_ranges[0].end : '00:00';
+                    var threshold = block.threshold || 0;
+                    var critical = block.critical_threshold || 0;
+                    var minRange = block.expected_range ? block.expected_range.min : 0;
+                    var maxRange = block.expected_range ? block.expected_range.max : 0;
+
+                    var row = '<tr class="woom-block-row" data-index="' + index + '">' +
+                        '<td style="text-align: center;"><input type="checkbox" class="woom-block-enabled" data-index="' + index + '" ' + (enabled ? 'checked' : '') + ' /></td>' +
+                        '<td><input type="text" class="woom-block-name" data-index="' + index + '" value="' + name + '" style="width: 100%;" readonly /></td>' +
+                        '<td><input type="time" class="woom-block-start" data-index="' + index + '" value="' + startTime + '" style="width: 100%;" /></td>' +
+                        '<td><input type="time" class="woom-block-end" data-index="' + index + '" value="' + endTime + '" style="width: 100%;" /></td>' +
+                        '<td><input type="number" class="woom-block-threshold" data-index="' + index + '" value="' + threshold + '" min="0" step="1" style="width: 100%;" /></td>' +
+                        '<td><input type="number" class="woom-block-critical" data-index="' + index + '" value="' + critical + '" min="0" step="1" style="width: 100%;" /></td>' +
+                        '<td>' +
+                            '<input type="number" class="woom-block-min" data-index="' + index + '" value="' + minRange + '" min="0" step="1" style="width: 60px;" placeholder="Min" /> - ' +
+                            '<input type="number" class="woom-block-max" data-index="' + index + '" value="' + maxRange + '" min="0" step="1" style="width: 60px;" placeholder="Max" />' +
+                        '</td>' +
+                    '</tr>';
+
+                    $tbody.append(row);
+                });
+            }
+
+            // Update hidden JSON field with current table data
+            function updateBlocksJSON() {
+                var blocks = [];
+
+                $('.woom-block-row').each(function() {
+                    var $row = $(this);
+                    var index = $row.data('index');
+
+                    var block = {
+                        name: $row.find('.woom-block-name').val(),
+                        enabled: $row.find('.woom-block-enabled').is(':checked'),
+                        time_ranges: [{
+                            start: $row.find('.woom-block-start').val(),
+                            end: $row.find('.woom-block-end').val()
+                        }],
+                        threshold: parseInt($row.find('.woom-block-threshold').val()) || 0,
+                        critical_threshold: parseInt($row.find('.woom-block-critical').val()) || 0,
+                        expected_range: {
+                            min: parseInt($row.find('.woom-block-min').val()) || 0,
+                            max: parseInt($row.find('.woom-block-max').val()) || 0
+                        }
+                    };
+
+                    blocks.push(block);
+                });
+
+                $('#woom_threshold_blocks_json').val(JSON.stringify(blocks));
+            }
+
+            // Update JSON when any field changes
+            $(document).on('change', '.woom-block-row input', function() {
+                updateBlocksJSON();
+            });
+
+            // Initialize JSON on page load
+            updateBlocksJSON();
+
             // Test notification button handler
             $('#woom_test_notification').on('click', function(e) {
                 e.preventDefault();

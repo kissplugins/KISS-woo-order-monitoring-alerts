@@ -62,10 +62,24 @@ class Plugin {
      * @var object|null
      */
     private $action_scheduler;
-    
+
+    /**
+     * Email notification handler
+     *
+     * @var object|null
+     */
+    private $email_notification;
+
+    /**
+     * CLI commands handler
+     *
+     * @var object|null
+     */
+    private $cli_commands;
+
     /**
      * Plugin initialization status
-     * 
+     *
      * @var bool
      */
     private $initialized = false;
@@ -158,12 +172,27 @@ class Plugin {
         // Initialize order monitor with settings dependency
         $this->order_monitor = new OrderMonitor($this->settings);
 
+        // Initialize email notification handler (Phase 5)
+        if (class_exists('KissPlugins\WooOrderMonitor\Notifications\EmailNotification')) {
+            $this->email_notification = new \KissPlugins\WooOrderMonitor\Notifications\EmailNotification($this->settings);
+        }
+
         // Initialize settings page if class exists (Phase 4)
         if (class_exists('KissPlugins\WooOrderMonitor\Admin\SettingsPage')) {
             $this->settings_page = new \KissPlugins\WooOrderMonitor\Admin\SettingsPage($this->settings);
         }
 
-        // Initialize Action Scheduler integration if available (Phase 5)
+        // Initialize CLI commands if WP-CLI is available (Phase 5)
+        if (defined('WP_CLI') && WP_CLI && class_exists('KissPlugins\WooOrderMonitor\CLI\Commands')) {
+            $this->cli_commands = new \KissPlugins\WooOrderMonitor\CLI\Commands(
+                $this->settings,
+                $this->order_monitor,
+                $this->email_notification
+            );
+            \WP_CLI::add_command('woom', $this->cli_commands);
+        }
+
+        // Initialize Action Scheduler integration if available (Phase 6)
         if (function_exists('as_schedule_recurring_action') &&
             class_exists('KissPlugins\WooOrderMonitor\Integration\ActionScheduler')) {
             $this->action_scheduler = new \KissPlugins\WooOrderMonitor\Integration\ActionScheduler($this->settings, $this->order_monitor);

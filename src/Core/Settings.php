@@ -195,6 +195,18 @@ class Settings {
                 }
                 break;
 
+            case 'url':
+                if (!$this->isValidUrl($value)) {
+                    return false;
+                }
+                break;
+
+            case 'date':
+                if (!$this->isValidDateFormat($value)) {
+                    return false;
+                }
+                break;
+
             case 'array':
                 // Special handling for threshold_blocks
                 if ($key === 'threshold_blocks') {
@@ -223,7 +235,7 @@ class Settings {
     
     /**
      * Validate email list (comma-separated emails)
-     * 
+     *
      * @param string $email_list Comma-separated email list
      * @return bool True if all emails are valid
      */
@@ -231,18 +243,59 @@ class Settings {
         if (empty($email_list)) {
             return true; // Empty list is valid
         }
-        
+
         $emails = array_map('trim', explode(',', $email_list));
-        
+
         foreach ($emails as $email) {
             if (!empty($email) && !is_email($email)) {
                 return false;
             }
         }
-        
+
         return true;
     }
-    
+
+    /**
+     * Validate URL format
+     *
+     * @param string $url URL string to validate
+     * @return bool True if valid URL format or empty
+     */
+    private function isValidUrl(string $url): bool {
+        // Empty URLs are valid (optional field)
+        if (empty($url)) {
+            return true;
+        }
+
+        // Use WordPress esc_url_raw for validation
+        $sanitized = \esc_url_raw($url);
+
+        // Check if URL is valid and matches common URL patterns
+        return !empty($sanitized) && \filter_var($sanitized, FILTER_VALIDATE_URL) !== false;
+    }
+
+    /**
+     * Validate date format (Y-m-d)
+     *
+     * @param string $date Date string to validate
+     * @return bool True if valid date format or empty
+     */
+    private function isValidDateFormat(string $date): bool {
+        // Empty dates are valid (will be set dynamically)
+        if (empty($date)) {
+            return true;
+        }
+
+        // Check Y-m-d format (e.g., 2025-12-10)
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return false;
+        }
+
+        // Validate it's a real date
+        $parts = explode('-', $date);
+        return checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0]);
+    }
+
     /**
      * Get default value for a setting
      *

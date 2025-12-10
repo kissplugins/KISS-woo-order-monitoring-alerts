@@ -10,7 +10,7 @@
  * Requires PHP: 7.4
  * WC requires at least: 6.0
  * WC tested up to: 8.0
- * Text Domain: kiss-woocomerce-order-monitor
+ * Text Domain: woo-order-monitor
  */
 
 // Prevent direct access

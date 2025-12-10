@@ -598,7 +598,11 @@ class SettingsPage {
     
     /**
      * Handle settings update logic
-     * 
+     *
+     * TODO: [AUDIT ISSUE #1] After PSR-4 Phase 7, replace direct cron scheduling
+     *       with call to CronScheduler::schedule() method instead.
+     *       This is duplicate logic that should be centralized.
+     *
      * @return void
      */
     private function handleSettingsUpdate(): void {
@@ -606,7 +610,7 @@ class SettingsPage {
         if ($this->settings->isEnabled()) {
             // Clear existing cron
             wp_clear_scheduled_hook('woom_check_orders');
-            
+
             // Schedule new cron
             if (!wp_next_scheduled('woom_check_orders')) {
                 wp_schedule_event(time(), 'woom_15min', 'woom_check_orders');

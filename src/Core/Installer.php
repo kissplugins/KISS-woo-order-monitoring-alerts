@@ -161,7 +161,14 @@ class Installer {
     
     /**
      * Schedule cron job if monitoring is enabled
-     * 
+     *
+     * TODO: [AUDIT ISSUE #1] Consolidate cron scheduling after PSR-4 Phase 7 completion.
+     *       Currently cron is scheduled in 3 PSR-4 locations:
+     *       - src/Core/Installer.php (activation)
+     *       - src/Monitoring/CronScheduler.php (runtime)
+     *       - src/Admin/SettingsPage.php (settings update)
+     *       Should be consolidated to only use CronScheduler class.
+     *
      * @return void
      */
     private function scheduleCronJob(): void {

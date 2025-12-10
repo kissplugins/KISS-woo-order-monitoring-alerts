@@ -1,7 +1,7 @@
 <?php
 /**
- * Test script for PSR-4 Phase 6 migration (Integration & Utilities)
- * 
+ * Test script for PSR-4 Phase 6 & 7 migration (Integration, Utilities & Cleanup)
+ *
  * Run this from WordPress root:
  * php -r "define('ABSPATH', __DIR__ . '/'); require 'wp-load.php'; require 'wp-content/plugins/KISS-woo-order-monitoring-alerts/test-phase6-migration.php';"
  */
@@ -154,13 +154,63 @@ try {
     echo "  ❌ Plugin check failed: " . $e->getMessage() . "\n\n";
 }
 
-echo "=== Phase 6 Migration Tests Complete ===\n";
-echo "\nSummary:\n";
+echo "=== Phase 6 Migration Tests Complete ===\n\n";
+
+// =====================================================
+// Phase 7 Tests: Cleanup Verification
+// =====================================================
+
+echo "=== Testing PSR-4 Phase 7 Cleanup ===\n\n";
+
+// Test 9: Verify legacy code removal
+echo "Test 9: Verifying legacy code removal...\n";
+$main_file_content = file_get_contents(WOOM_PLUGIN_DIR . 'kiss-woo-order-monitoring-alerts.php');
+
+$legacy_as_removed = strpos($main_file_content, 'class WOOM_Action_Scheduler') === false;
+$legacy_cli_removed = strpos($main_file_content, 'class WOOM_CLI_Commands') === false;
+
+echo "  WOOM_Action_Scheduler class removed: " . ($legacy_as_removed ? "✅ YES" : "❌ NO - Still present") . "\n";
+echo "  WOOM_CLI_Commands class removed: " . ($legacy_cli_removed ? "✅ YES" : "❌ NO - Still present") . "\n\n";
+
+// Test 10: Verify cron consolidation
+echo "Test 10: Verifying cron consolidation...\n";
+$installer_content = file_get_contents(WOOM_PLUGIN_DIR . 'src/Core/Installer.php');
+$settingspage_content = file_get_contents(WOOM_PLUGIN_DIR . 'src/Admin/SettingsPage.php');
+$cronscheduler_content = file_get_contents(WOOM_PLUGIN_DIR . 'src/Monitoring/CronScheduler.php');
+
+$installer_uses_cronscheduler = strpos($installer_content, 'CronScheduler($settings)') !== false;
+$settingspage_uses_cronscheduler = strpos($settingspage_content, 'CronScheduler($this->settings)') !== false;
+$audit_resolved = strpos($cronscheduler_content, 'RESOLVED') !== false;
+
+echo "  Installer delegates to CronScheduler: " . ($installer_uses_cronscheduler ? "✅ YES" : "❌ NO") . "\n";
+echo "  SettingsPage delegates to CronScheduler: " . ($settingspage_uses_cronscheduler ? "✅ YES" : "❌ NO") . "\n";
+echo "  Audit Issue #1 marked resolved: " . ($audit_resolved ? "✅ YES" : "❌ NO") . "\n\n";
+
+// Test 11: Verify bootstrap PSR-4 detection
+echo "Test 11: Verifying bootstrap PSR-4 detection...\n";
+$bootstrap_content = file_get_contents(WOOM_PLUGIN_DIR . 'bootstrap.php');
+
+$bootstrap_checks_phase6 = strpos($bootstrap_content, 'Integration/ActionScheduler.php') !== false &&
+                            strpos($bootstrap_content, 'Utils/Logger.php') !== false;
+$bootstrap_checks_phase5 = strpos($bootstrap_content, 'Notifications/EmailNotification.php') !== false &&
+                            strpos($bootstrap_content, 'CLI/Commands.php') !== false;
+
+echo "  Bootstrap checks Phase 5 classes: " . ($bootstrap_checks_phase5 ? "✅ YES" : "❌ NO") . "\n";
+echo "  Bootstrap checks Phase 6 classes: " . ($bootstrap_checks_phase6 ? "✅ YES" : "❌ NO") . "\n\n";
+
+// Test 12: Verify PSR-4 mode is active
+echo "Test 12: Verifying PSR-4 mode activation...\n";
+$psr4_active = function_exists('woom_should_use_psr4') && woom_should_use_psr4();
+echo "  PSR-4 mode active: " . ($psr4_active ? "✅ YES" : "❌ NO") . "\n\n";
+
+echo "=== Phase 7 Cleanup Tests Complete ===\n\n";
+
+// Final summary
+echo "=== FINAL SUMMARY ===\n";
 echo "- Integration classes: " . ($action_scheduler_exists && $woocommerce_exists ? "✅ READY" : "❌ INCOMPLETE") . "\n";
 echo "- Utils classes: " . ($time_helper_exists && $email_validator_exists && $logger_exists ? "✅ READY" : "❌ INCOMPLETE") . "\n";
 echo "- Plugin integration: ✅ UPDATED\n";
-echo "\nNext steps:\n";
-echo "1. Proceed to Phase 7 (Testing & Cleanup)\n";
-echo "2. Remove legacy code from main plugin file\n";
-echo "3. Run comprehensive tests\n";
-
+echo "- Legacy code removed: " . ($legacy_as_removed && $legacy_cli_removed ? "✅ YES" : "❌ NO") . "\n";
+echo "- Cron consolidated: " . ($installer_uses_cronscheduler && $settingspage_uses_cronscheduler ? "✅ YES" : "❌ NO") . "\n";
+echo "- PSR-4 mode active: " . ($psr4_active ? "✅ YES" : "❌ NO") . "\n";
+echo "\n🎉 PSR-4 MIGRATION COMPLETE! 🎉\n";

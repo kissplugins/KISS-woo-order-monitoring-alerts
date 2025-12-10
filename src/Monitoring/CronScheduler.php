@@ -86,10 +86,10 @@ class CronScheduler {
      * Automatically clears any existing schedules to prevent duplicates and
      * ensures the job is scheduled with the correct interval.
      *
-     * TODO: [AUDIT ISSUE #1] This should be the ONLY place cron is scheduled.
-     *       After PSR-4 Phase 7, remove cron scheduling from:
-     *       - src/Core/Installer.php (should call this method instead)
-     *       - src/Admin/SettingsPage.php (should call this method instead)
+     * [AUDIT ISSUE #1] RESOLVED - This is now the ONLY place cron is scheduled.
+     * After PSR-4 Phase 7 completion:
+     * - src/Core/Installer.php now calls this method
+     * - src/Admin/SettingsPage.php now calls this method
      *
      * @return bool True if the cron job was scheduled successfully, false on failure.
      *              Failures are logged for debugging purposes.

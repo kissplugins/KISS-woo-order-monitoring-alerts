@@ -162,12 +162,8 @@ class Installer {
     /**
      * Schedule cron job if monitoring is enabled
      *
-     * TODO: [AUDIT ISSUE #1] Consolidate cron scheduling after PSR-4 Phase 7 completion.
-     *       Currently cron is scheduled in 3 PSR-4 locations:
-     *       - src/Core/Installer.php (activation)
-     *       - src/Monitoring/CronScheduler.php (runtime)
-     *       - src/Admin/SettingsPage.php (settings update)
-     *       Should be consolidated to only use CronScheduler class.
+     * This method now delegates to CronScheduler for centralized cron management.
+     * [AUDIT ISSUE #1] RESOLVED - Cron scheduling is now consolidated.
      *
      * @return void
      */
@@ -175,13 +171,10 @@ class Installer {
         $enabled = \get_option('woom_enabled', SettingsDefaults::getDefault('enabled'));
 
         if ('yes' === $enabled) {
-            // Clear any existing scheduled events first
-            \wp_clear_scheduled_hook('woom_check_orders');
-
-            // Schedule new event
-            if (!\wp_next_scheduled('woom_check_orders')) {
-                \wp_schedule_event(\time(), 'woom_15min', 'woom_check_orders');
-            }
+            // Use CronScheduler for centralized cron management
+            $settings = new Settings();
+            $cron_scheduler = new \KissPlugins\WooOrderMonitor\Monitoring\CronScheduler($settings);
+            $cron_scheduler->schedule();
         }
     }
     

@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.7.1
+ * Version: 1.8.0
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -41,7 +41,7 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.7.1');
+define('WOOM_VERSION', '1.8.0');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -2435,57 +2435,14 @@ add_action('plugins_loaded', function() {
     }
 });
 
-/**
- * Alternative monitoring using Action Scheduler (if available)
- * This provides more reliable execution than WP-Cron
- */
-if (function_exists('as_schedule_recurring_action')) {
-    
-    class WOOM_Action_Scheduler {
-        
-        /**
-         * Initialize Action Scheduler integration
-         */
-        public static function init() {
-            add_action('init', [__CLASS__, 'schedule_monitoring']);
-            add_action('woom_as_check_orders', [__CLASS__, 'run_check']);
-        }
-        
-        /**
-         * Schedule monitoring with Action Scheduler
-         */
-        public static function schedule_monitoring() {
-            $enabled = get_option('woom_enabled', 'no');
-            
-            if ('yes' === $enabled && !as_next_scheduled_action('woom_as_check_orders')) {
-                as_schedule_recurring_action(
-                    time(),
-                    900, // 15 minutes
-                    'woom_as_check_orders',
-                    [],
-                    'woo-order-monitor'
-                );
-            } elseif ('yes' !== $enabled) {
-                as_unschedule_all_actions('woom_as_check_orders', [], 'woo-order-monitor');
-            }
-        }
-        
-        /**
-         * Run the order check
-         */
-        public static function run_check() {
-            $monitor = WooCommerce_Order_Monitor::get_instance();
-            $monitor->check_order_threshold();
-        }
-    }
-    
-    // Initialize Action Scheduler integration
-    WOOM_Action_Scheduler::init();
-}
+// Note: WOOM_Action_Scheduler has been migrated to PSR-4 (src/Integration/ActionScheduler.php)
+// The PSR-4 version is initialized via bootstrap.php when the plugin loads
 
 /**
  * Performance optimized order query using custom SQL
  * This is an alternative implementation for high-volume stores
+ * @deprecated Use \KissPlugins\WooOrderMonitor\Monitoring\Query\OptimizedQuery instead
+ * This class is kept as fallback only when PSR-4 fails to load
  */
 class WOOM_Optimized_Query {
     
@@ -2597,94 +2554,8 @@ class WOOM_Optimized_Query {
     }
 }
 
-/**
- * CLI Commands for WP-CLI support
- */
-if (defined('WP_CLI') && WP_CLI) {
-    
-    class WOOM_CLI_Commands {
-        
-        /**
-         * Check order threshold manually
-         * * ## EXAMPLES
-         * * wp woom check
-         */
-        public function check() {
-            $monitor = WooCommerce_Order_Monitor::get_instance();
-            $monitor->check_order_threshold();
-            
-            WP_CLI::success('Order threshold check completed.');
-        }
-        
-        /**
-         * Get current order count
-         * * ## OPTIONS
-         * * [--minutes=<minutes>]
-         * : Number of minutes to look back. Default: 15
-         * * ## EXAMPLES
-         * * wp woom count
-         * wp woom count --minutes=30
-         */
-        public function count($args, $assoc_args) {
-            $minutes = isset($assoc_args['minutes']) ? intval($assoc_args['minutes']) : 15;
-            
-            $monitor = WooCommerce_Order_Monitor::get_instance();
-            $count = WOOM_Optimized_Query::get_cached_order_count($minutes);
-            
-            WP_CLI::line(sprintf('Orders in last %d minutes: %d', $minutes, $count));
-        }
-        
-        /**
-         * Send test notification
-         * * ## EXAMPLES
-         * * wp woom test
-         */
-        public function test() {
-            $monitor = WooCommerce_Order_Monitor::get_instance();
-            
-            $to = $monitor->get_notification_emails();
-            $subject = '[Test] WooCommerce Order Monitor';
-            $body = 'This is a test notification from WP-CLI.';
-            
-            if (wp_mail($to, $subject, $body)) {
-                WP_CLI::success('Test notification sent to: ' . implode(', ', $to));
-            } else {
-                WP_CLI::error('Failed to send test notification.');
-            }
-        }
-        
-        /**
-         * Show current configuration
-         * * ## EXAMPLES
-         * * wp woom config
-         */
-        public function config() {
-            // Get defaults from centralized configuration
-            $defaults = \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getRuntimeDefaults();
-
-            $settings = [
-                'enabled' => get_option('woom_enabled', $defaults['enabled']),
-                'peak_start' => get_option('woom_peak_start', $defaults['peak_start']),
-                'peak_end' => get_option('woom_peak_end', $defaults['peak_end']),
-                'threshold_peak' => get_option('woom_threshold_peak', $defaults['threshold_peak']),
-                'threshold_offpeak' => get_option('woom_threshold_offpeak', $defaults['threshold_offpeak']),
-                'notification_emails' => get_option('woom_notification_emails', $defaults['notification_emails']),
-                'last_check' => get_option('woom_last_check', $defaults['last_check']),
-                'last_alert' => get_option('woom_last_alert', $defaults['last_alert'])
-            ];
-            
-            WP_CLI::line('WooCommerce Order Monitor Configuration:');
-            foreach ($settings as $key => $value) {
-                if ($key === 'last_check' || $key === 'last_alert') {
-                    $value = $value ? date('Y-m-d H:i:s', $value) : 'Never';
-                }
-                WP_CLI::line(sprintf('  %s: %s', $key, $value));
-            }
-        }
-    }
-    
-    WP_CLI::add_command('woom', 'WOOM_CLI_Commands');
-}
+// Note: WOOM_CLI_Commands has been migrated to PSR-4 (src/CLI/Commands.php)
+// The PSR-4 version is initialized via Plugin::initializeComponents() when the plugin loads
 
 // Add custom health check for Site Health
 add_filter('site_status_tests', function($tests) {

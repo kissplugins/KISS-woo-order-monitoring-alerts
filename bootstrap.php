@@ -88,14 +88,33 @@ function woom_should_use_psr4() {
         return false;
     }
 
-    // Auto-detect based on file existence - Phase 4 complete!
+    // Auto-detect based on file existence - PSR-4 Migration Complete (Phase 7)!
+    // All required PSR-4 classes must exist for PSR-4 mode to be enabled
     $psr4_main_class = WOOM_PLUGIN_DIR . 'src/Core/Plugin.php';
+
+    // Core classes (Phase 1-2)
+    $core_classes_exist = file_exists(WOOM_PLUGIN_DIR . 'src/Core/Settings.php') &&
+                          file_exists(WOOM_PLUGIN_DIR . 'src/Core/Installer.php');
+
+    // Admin classes (Phase 4)
     $admin_classes_exist = file_exists(WOOM_PLUGIN_DIR . 'src/Admin/SettingsPage.php') &&
                           file_exists(WOOM_PLUGIN_DIR . 'src/Admin/TabRenderer.php') &&
                           file_exists(WOOM_PLUGIN_DIR . 'src/Admin/SelfTests.php') &&
                           file_exists(WOOM_PLUGIN_DIR . 'src/Admin/AjaxHandler.php');
 
-    return file_exists($psr4_main_class) && $admin_classes_exist;
+    // Notification and CLI classes (Phase 5)
+    $notification_classes_exist = file_exists(WOOM_PLUGIN_DIR . 'src/Notifications/EmailNotification.php') &&
+                                  file_exists(WOOM_PLUGIN_DIR . 'src/CLI/Commands.php');
+
+    // Integration and Utils classes (Phase 6)
+    $integration_classes_exist = file_exists(WOOM_PLUGIN_DIR . 'src/Integration/ActionScheduler.php') &&
+                                 file_exists(WOOM_PLUGIN_DIR . 'src/Utils/Logger.php');
+
+    return file_exists($psr4_main_class) &&
+           $core_classes_exist &&
+           $admin_classes_exist &&
+           $notification_classes_exist &&
+           $integration_classes_exist;
 }
 
 /**

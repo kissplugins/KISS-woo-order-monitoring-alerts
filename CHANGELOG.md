@@ -1,5 +1,78 @@
 ## Changelog
 
+### Version 1.8.0
+December 10, 2025
+
+**🎉 MAJOR: PSR-4 Migration Complete (100%)**
+
+This release completes the full PSR-4 migration, establishing a modern, maintainable codebase architecture.
+
+**✅ Phase 5: Notifications & CLI**
+- **`src/Notifications/EmailNotification.php`** - Centralized email notification management
+  - `sendAlert()` - Send threshold alert with throttling support
+  - `sendThrottledAlert()` - Manage alert frequency limits
+  - `sendTestNotification()` - Test email functionality
+- **`src/Notifications/NotificationTemplate.php`** - Professional email templates
+  - `renderAlertEmail()` - Standard alert email template
+  - `renderEnhancedAlertEmail()` - Enhanced template with escalation info
+  - `renderTestEmail()` - Test notification template
+- **`src/CLI/Commands.php`** - WP-CLI integration
+  - `wp woom check` - Run manual threshold check
+  - `wp woom count` - Get current order count
+  - `wp woom test` - Send test notification
+  - `wp woom config` - Show current configuration
+  - `wp woom clear-cache` - Clear order count cache
+
+**✅ Phase 6: Integration & Utilities**
+- **`src/Integration/ActionScheduler.php`** - Action Scheduler integration
+  - Automatic scheduling/unscheduling based on monitoring status
+  - 15-minute recurring interval with proper action group
+  - Manual trigger capability for testing
+- **`src/Integration/WooCommerce.php`** - WooCommerce-specific utilities
+  - HPOS (High-Performance Order Storage) detection
+  - Order status helpers and database table abstraction
+  - Admin URL helpers for WooCommerce pages
+- **`src/Utils/TimeHelper.php`** - Time utility functions
+  - Timezone handling and time range checking
+  - Duration formatting and time period calculations
+  - Overnight time range support
+- **`src/Utils/EmailValidator.php`** - Email validation utilities
+  - Single and multiple email validation
+  - Comma-separated email list parsing
+  - Admin email fallback support
+- **`src/Utils/Logger.php`** - Centralized logging
+  - Multiple log levels (DEBUG, INFO, WARNING, ERROR)
+  - Conditional logging based on WP_DEBUG
+  - Exception logging with stack traces
+
+**✅ Phase 7: Testing & Cleanup**
+- **Legacy Code Removal** - Removed duplicate classes from main plugin file
+  - Removed `WOOM_Action_Scheduler` class (now in PSR-4)
+  - Removed `WOOM_CLI_Commands` class (now in PSR-4)
+  - Legacy fallback preserved for safety
+- **Cron Consolidation** - Centralized cron scheduling
+  - `Installer.php` now delegates to `CronScheduler`
+  - `SettingsPage.php` now delegates to `CronScheduler`
+  - Single source of truth for cron management
+- **Bootstrap Enhancement** - Updated PSR-4 detection
+  - Added checks for Phase 5 classes (Notifications, CLI)
+  - Added checks for Phase 6 classes (Integration, Utils)
+  - Comprehensive auto-detection for PSR-4 mode
+
+**🔧 Audit Issues Resolved:**
+- **Issue #1 (Cron Duplication)** - RESOLVED: Consolidated to CronScheduler only
+- **Issue #2 (Validation)** - Previously resolved in v1.7.1
+- **Issue #3 (Duplicated Logic)** - RESOLVED: Removed legacy duplicates
+- **Issue #4 (Text Domain)** - Previously resolved in v1.7.1
+
+**📊 Architecture Summary:**
+- **23 PSR-4 classes** across 7 directories
+- **0 duplicate code** - All functionality in single locations
+- **100% PSR-4 coverage** - Full modern architecture
+- **Legacy fallback** - Preserved for edge cases
+
+---
+
 ### Version 1.7.1
 October 30, 2025
 

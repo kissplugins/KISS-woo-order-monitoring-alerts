@@ -599,25 +599,20 @@ class SettingsPage {
     /**
      * Handle settings update logic
      *
-     * TODO: [AUDIT ISSUE #1] After PSR-4 Phase 7, replace direct cron scheduling
-     *       with call to CronScheduler::schedule() method instead.
-     *       This is duplicate logic that should be centralized.
+     * This method now delegates to CronScheduler for centralized cron management.
+     * [AUDIT ISSUE #1] RESOLVED - Cron scheduling is now consolidated.
      *
      * @return void
      */
     private function handleSettingsUpdate(): void {
+        // Use CronScheduler for centralized cron management
+        $cron_scheduler = new \KissPlugins\WooOrderMonitor\Monitoring\CronScheduler($this->settings);
+
         // Reschedule cron if monitoring settings changed
         if ($this->settings->isEnabled()) {
-            // Clear existing cron
-            wp_clear_scheduled_hook('woom_check_orders');
-
-            // Schedule new cron
-            if (!wp_next_scheduled('woom_check_orders')) {
-                wp_schedule_event(time(), 'woom_15min', 'woom_check_orders');
-            }
+            $cron_scheduler->schedule();
         } else {
-            // Clear cron if monitoring is disabled
-            wp_clear_scheduled_hook('woom_check_orders');
+            $cron_scheduler->unschedule();
         }
     }
     

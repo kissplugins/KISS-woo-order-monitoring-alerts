@@ -196,6 +196,7 @@ class Plugin {
         if (function_exists('as_schedule_recurring_action') &&
             class_exists('KissPlugins\WooOrderMonitor\Integration\ActionScheduler')) {
             $this->action_scheduler = new \KissPlugins\WooOrderMonitor\Integration\ActionScheduler($this->settings, $this->order_monitor);
+            $this->action_scheduler->initializeHooks();
         }
     }
     

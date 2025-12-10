@@ -1,6 +1,30 @@
 
 # PROJECT.md: E-commerce Order Velocity Monitoring System
 
+## Table of Contents
+
+1. [System Goal](#1-system-goal)
+2. [Core Algorithm and Statistics](#2-core-algorithm-and-statistics)
+   - [Control Limit Formulas](#a-control-limit-formulas)
+   - [WooCommerce Cart Abandonment Note](#b-woocommerce-cart-abandonment-note)
+3. [WordPress Plugin Architectural Outline](#3-wordpress-plugin-architectural-outline)
+   - [Backend (PHP - Data & Calculation)](#a-backend-php---data--calculation)
+   - [Frontend (JavaScript/AJAX - Alerting & Display)](#b-frontend-javascriptajax---alerting--display)
+   - [Example Logic Flow (Alerting)](#c-example-logic-flow-alerting)
+4. [Portability to Shopify](#4-portability-to-shopify)
+5. [Gap Analysis: SPC Vision vs Implementation](#gap-analysis-spc-vision-vs-implementation)
+6. [Gap and Alignment Analysis: PROJECT-RETHINK.md vs Current Implementation](#gap-and-alignment-analysis-project-rethinkmd-vs-current-implementation)
+   - [Executive Summary](#-executive-summary)
+   - [Detailed Gap Analysis](#-detailed-gap-analysis)
+   - [What Is Aligned](#-what-is-aligned)
+   - [Critical Gaps](#-critical-gaps)
+   - [Partial Implementations](#-partial-implementations)
+   - [Implementation Roadmap to Align](#-implementation-roadmap-to-align)
+   - [Recommendations](#-recommendations)
+   - [Alignment Scorecard](#-alignment-scorecard)
+
+---
+
 ## 1. System Goal
 
 To create a real-time order velocity monitoring system for an e-commerce platform (initial focus on WooCommerce, with portability to Shopify) that alerts the owner to potential cart checkout problems by tracking order velocity deviations using statistical control limits.

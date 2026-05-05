@@ -62,6 +62,12 @@ class SettingsDefaults {
         'webhook_url' => '',
         'query_cache_duration' => 300, // 5 minutes in seconds
 
+        // Email subject prefix prepended to every alert/test/system email.
+        // Empty string disables the feature. Resolved dynamically in
+        // getRuntimeDefaults() to "[<host>]" so multi-site admins can tell
+        // which site fired an alert at a glance.
+        'subject_prefix' => '',
+
         // Rolling Average Detection (RAD) settings - v1.6.0
         'rolling_enabled' => 'no', // Opt-in for Phase 1
         'rolling_window_size' => 10, // Track last N orders
@@ -94,7 +100,14 @@ class SettingsDefaults {
         if (empty($defaults['daily_alert_date'])) {
             $defaults['daily_alert_date'] = date('Y-m-d');
         }
-        
+
+        if ($defaults['subject_prefix'] === '') {
+            $host = parse_url(home_url(), PHP_URL_HOST);
+            if (is_string($host) && $host !== '') {
+                $defaults['subject_prefix'] = '[' . $host . ']';
+            }
+        }
+
         return $defaults;
     }
     
@@ -171,6 +184,7 @@ class SettingsDefaults {
             'enable_system_alerts' => ['type' => 'string', 'values' => ['yes', 'no']],
             'webhook_url' => ['type' => 'url'],
             'query_cache_duration' => ['type' => 'int', 'min' => 60, 'max' => 3600], // 1 min to 1 hour
+            'subject_prefix' => ['type' => 'string'],
 
             // Rolling Average Detection validation rules
             'rolling_enabled' => ['type' => 'string', 'values' => ['yes', 'no']],

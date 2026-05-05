@@ -85,11 +85,11 @@ A lightweight WooCommerce plugin that monitors successful order completion rates
 6. Log monitoring event
 
 #### 4.2 Alert System
-- **Email Format**: 
-  - Subject: `[Alert] WooCommerce Orders Below Threshold`
+- **Email Format**:
+  - Subject: `<prefix> [Alert] WooCommerce Orders Below Threshold` (prefix defaults to `[<site-host>]`; configurable)
   - Include: timestamp, expected orders, actual orders, time period
   - Include: direct link to WooCommerce orders page
-  
+
 #### 4.3 Admin Interface
 Location: WooCommerce → Settings → Order Monitor
 
@@ -100,8 +100,9 @@ Location: WooCommerce → Settings → Order Monitor
 4. Peak hours minimum orders (number input)
 5. Off-peak hours minimum orders (number input)
 6. Notification emails (textarea, comma-separated)
-7. Send test notification (button)
-8. Monitoring status (display last check time)
+7. Email subject prefix (text; defaults to `[<site-host>]`, empty disables)
+8. Send test notification (button)
+9. Monitoring status (display last check time)
 
 ### 5. Code Implementation
 
@@ -272,7 +273,7 @@ See accompanying code snippets for:
 
 ## Appendix B: Email Template Example
 
-**Subject**: ⚠️ WooCommerce Order Alert - Orders Below Threshold
+**Subject**: `[<site-host>]` ⚠️ WooCommerce Order Alert - Orders Below Threshold
 
 **Body**:
 ```

@@ -1,5 +1,16 @@
 ## Changelog
 
+### Version 1.6.4
+May 5, 2026
+
+**✨ New feature — configurable email subject prefix:**
+- **`Email Subject Prefix` setting** added under WooCommerce → Settings → Order Monitor. Prepended to every alert, test, and system email so multi-site admins can tell which store fired an alert at a glance.
+  - Default: `[<your-site-host>]` (e.g. `[bloomz-prod-08-15.local]`), resolved dynamically from `home_url()`.
+  - Empty value disables the prefix entirely.
+  - Example output: `[bloomz-prod-08-15.local] [Alert] WooCommerce Orders Below Threshold (Peak)`
+- New `woom_email_subject()` helper consolidates prefix logic; called from all eight `wp_mail()` subject sites across legacy + PSR-4 paths (including the WP-CLI `wp woom test` command).
+- Stored under `woom_subject_prefix` option; `subject_prefix` key in `SettingsDefaults` master defaults with validation rule (`type => string`).
+
 ### Version 1.6.3
 May 5, 2026
 

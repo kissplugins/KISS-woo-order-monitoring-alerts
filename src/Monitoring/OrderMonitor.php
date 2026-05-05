@@ -210,7 +210,7 @@ class OrderMonitor {
             }
             
             // Prepare email data
-            $subject = __('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor');
+            $subject = woom_email_subject(__('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor'));
             
             // Calculate time period for email
             $end_time = current_time('H:i');
@@ -721,7 +721,7 @@ class OrderMonitor {
             }
 
             // Prepare email data
-            $subject = __('[Alert] High Order Failure Rate Detected', 'woo-order-monitor');
+            $subject = woom_email_subject(__('[Alert] High Order Failure Rate Detected', 'woo-order-monitor'));
 
             $email_data = [
                 'failure_rate' => round($failure_rate, 2),

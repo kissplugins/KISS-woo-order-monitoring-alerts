@@ -88,7 +88,7 @@ class AjaxHandler {
             }
             
             // Prepare test email
-            $subject = __('[Test] WooCommerce Order Monitor', 'woo-order-monitor');
+            $subject = woom_email_subject(__('[Test] WooCommerce Order Monitor', 'woo-order-monitor'));
             $body = $this->buildTestEmailBody();
             
             if (empty($body)) {

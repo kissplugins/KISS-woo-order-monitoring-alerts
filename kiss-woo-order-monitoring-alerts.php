@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.6.3
+ * Version: 1.6.4
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -41,7 +41,7 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.6.3');
+define('WOOM_VERSION', '1.6.4');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -107,6 +107,44 @@ if (!function_exists('woom_orders_admin_url')) {
 
         $query = ['post_type' => 'shop_order'] + $args;
         return admin_url('edit.php?' . http_build_query($query));
+    }
+}
+
+if (!function_exists('woom_email_subject')) {
+    /**
+     * Prepend the configured site identifier to an email subject line.
+     *
+     * Reads the `woom_subject_prefix` option, falling back to the
+     * dynamically resolved default in SettingsDefaults (which evaluates
+     * to "[<host>]"). An empty stored value disables the feature
+     * entirely. Use this at every wp_mail() call site so multi-site
+     * admins can tell which store an alert came from at a glance.
+     *
+     * @param string $subject The original subject line.
+     * @return string Subject with prefix prepended (or unchanged if disabled).
+     */
+    function woom_email_subject(string $subject): string {
+        // get_option returns the second arg verbatim only when the key is absent
+        // from wp_options. A stored empty string means the user explicitly
+        // disabled the prefix; we must not fall back to the default in that case.
+        $sentinel = '__woom_subject_prefix_unset__';
+        $prefix = get_option('woom_subject_prefix', $sentinel);
+
+        if ($prefix === $sentinel) {
+            if (class_exists('\\KissPlugins\\WooOrderMonitor\\Core\\SettingsDefaults')) {
+                $prefix = \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('subject_prefix', '');
+            } else {
+                $host = parse_url(home_url(), PHP_URL_HOST);
+                $prefix = is_string($host) && $host !== '' ? '[' . $host . ']' : '';
+            }
+        }
+
+        $prefix = trim((string) $prefix);
+        if ($prefix === '') {
+            return $subject;
+        }
+
+        return $prefix . ' ' . $subject;
     }
 }
 
@@ -523,7 +561,7 @@ class WooCommerce_Order_Monitor {
                 return false;
             }
 
-            $subject = __('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor');
+            $subject = woom_email_subject(__('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor'));
 
             // Calculate time period
             $end_time = current_time('H:i');
@@ -805,15 +843,19 @@ class WooCommerce_Order_Monitor {
      */
     private function build_alert_subject($alert_type, $is_peak) {
         $period = $is_peak ? 'Peak' : 'Off-Peak';
-        
+
         switch ($alert_type) {
             case 'first_today':
-                return sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
+                $subject = sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
+                break;
             case 'escalated':
-                return sprintf(__('[URGENT] Repeated Order Volume Issues (%s)', 'woo-order-monitor'), $period);
+                $subject = sprintf(__('[URGENT] Repeated Order Volume Issues (%s)', 'woo-order-monitor'), $period);
+                break;
             default:
-                return sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
+                $subject = sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
         }
+
+        return woom_email_subject($subject);
     }
     
     /**
@@ -1001,7 +1043,7 @@ class WooCommerce_Order_Monitor {
     private function send_system_alert($subject, $message) {
         try {
             $to = $this->get_notification_emails();
-            $full_subject = '[SYSTEM] WooCommerce Order Monitor - ' . $subject;
+            $full_subject = woom_email_subject('[SYSTEM] WooCommerce Order Monitor - ' . $subject);
             
             $body = sprintf(
                 '<h3>System Alert: %s</h3><p><strong>Error:</strong> %s</p><p><strong>Time:</strong> %s</p><p><strong>Site:</strong> %s</p>',
@@ -1905,7 +1947,7 @@ class WooCommerce_Order_Monitor {
                 return;
             }
 
-            $subject = __('[Test] WooCommerce Order Monitor - Test Notification', 'woo-order-monitor');
+            $subject = woom_email_subject(__('[Test] WooCommerce Order Monitor - Test Notification', 'woo-order-monitor'));
 
             // Build test email body
             $body = $this->build_test_email_body();
@@ -2712,7 +2754,7 @@ if (defined('WP_CLI') && WP_CLI) {
             $monitor = WooCommerce_Order_Monitor::get_instance();
             
             $to = $monitor->get_notification_emails();
-            $subject = '[Test] WooCommerce Order Monitor';
+            $subject = woom_email_subject('[Test] WooCommerce Order Monitor');
             $body = 'This is a test notification from WP-CLI.';
             
             if (wp_mail($to, $subject, $body)) {

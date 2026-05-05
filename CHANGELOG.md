@@ -1,5 +1,16 @@
 ## Changelog
 
+### Version 1.6.2
+May 4, 2026
+
+**✨ Improvements:**
+- **Declared WooCommerce HPOS compatibility** (issue #27) - Plugin now formally declares `custom_order_tables` compatibility on the `before_woocommerce_init` hook
+  - Clears the "1 Incompatible plugin detected" warning under WooCommerce → Settings → Advanced → Features
+  - Existing query paths already detect HPOS at runtime and read from the `wc_orders` table when active (`WooCommerce_Order_Monitor::is_hpos_enabled()`, `OptimizedQuery`, `WOOM_Optimized_Query`)
+  - Stores can now safely disable WP-posts storage compatibility mode and run pure-HPOS
+
+**Note:** A follow-up release will add HPOS branches to the remaining posts-only query paths in `OrderQuery`, `WOOM_Optimized_Query::get_order_stats()`, the database self-test, and the admin URLs in notification emails. These paths only execute on legacy stores today, so the declaration is honest, but pure-HPOS robustness is the next step.
+
 ### Version 1.6.1
 October 23, 2025
 

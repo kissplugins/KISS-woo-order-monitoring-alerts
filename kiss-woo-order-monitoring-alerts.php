@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.6.0
+ * Version: 1.6.2
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -41,10 +41,26 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.6.0');
+define('WOOM_VERSION', '1.6.2');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
+
+// Declare WooCommerce HPOS (custom order tables) compatibility.
+// Must run on `before_woocommerce_init` so it fires before WC decides whether
+// HPOS-only mode is safe to enable. Query paths in this plugin already detect
+// HPOS at runtime and read from the `wc_orders` table when it is active; the
+// declaration tells WooCommerce we are safe to run with the legacy posts
+// storage disabled.
+add_action('before_woocommerce_init', function () {
+    if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility(
+            'custom_order_tables',
+            __FILE__,
+            true
+        );
+    }
+});
 
 // Include the Plugin Update Checker
 require_once WOOM_PLUGIN_DIR . 'lib/plugin-update-checker/plugin-update-checker.php';

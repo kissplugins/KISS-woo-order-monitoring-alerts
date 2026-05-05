@@ -117,17 +117,18 @@ class OrderQuery implements QueryInterface {
         global $wpdb;
 
         try {
-            // Calculate start time
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+            $start_ts = time() - ($minutes * 60);
 
             if ($this->isHposEnabled()) {
-                // Read directly from the HPOS orders table when active.
+                // type='shop_order' excludes shop_order_refund rows that share
+                // wc-completed status. date_created_gmt is UTC.
                 $query = $wpdb->prepare("
                     SELECT COUNT(*) as order_count
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN (" . $this->getStatusPlaceholders() . ")
+                    WHERE type = 'shop_order'
+                    AND status IN (" . $this->getStatusPlaceholders() . ")
                     AND date_created_gmt >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [gmdate('Y-m-d H:i:s', $start_ts)]));
             } else {
                 $query = $wpdb->prepare("
                     SELECT COUNT(DISTINCT p.ID) as order_count
@@ -135,7 +136,7 @@ class OrderQuery implements QueryInterface {
                     WHERE p.post_type = 'shop_order'
                     AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
                     AND p.post_date >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [date('Y-m-d H:i:s', $start_ts)]));
             }
 
             // Execute query
@@ -165,10 +166,10 @@ class OrderQuery implements QueryInterface {
         global $wpdb;
 
         try {
-            // Calculate start time
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+            $start_ts = time() - ($minutes * 60);
 
             if ($this->isHposEnabled()) {
+                // type='shop_order' excludes shop_order_refund; date_created_gmt is UTC.
                 $query = $wpdb->prepare("
                     SELECT
                         COUNT(*) as total_orders,
@@ -177,9 +178,10 @@ class OrderQuery implements QueryInterface {
                         MIN(date_created_gmt) as first_order_time,
                         MAX(date_created_gmt) as last_order_time
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN (" . $this->getStatusPlaceholders() . ")
+                    WHERE type = 'shop_order'
+                    AND status IN (" . $this->getStatusPlaceholders() . ")
                     AND date_created_gmt >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [gmdate('Y-m-d H:i:s', $start_ts)]));
             } else {
                 $query = $wpdb->prepare("
                     SELECT
@@ -192,7 +194,7 @@ class OrderQuery implements QueryInterface {
                     WHERE p.post_type = 'shop_order'
                     AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
                     AND p.post_date >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [date('Y-m-d H:i:s', $start_ts)]));
             }
 
             // Execute query

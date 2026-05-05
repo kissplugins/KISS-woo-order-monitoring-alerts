@@ -503,10 +503,13 @@ class SelfTests {
 
             // Test order count query against the active backend
             if ($hpos_available) {
+                // type='shop_order' excludes shop_order_refund rows that share
+                // wc-completed status. UTC_TIMESTAMP() already gives a GMT bound.
                 $order_count = $wpdb->get_var("
                     SELECT COUNT(*)
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN ('wc-processing', 'wc-completed', 'wc-on-hold')
+                    WHERE type = 'shop_order'
+                    AND status IN ('wc-processing', 'wc-completed', 'wc-on-hold')
                     AND date_created_gmt >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)
                 ");
             } else {

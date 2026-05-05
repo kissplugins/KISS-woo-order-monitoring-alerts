@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.6.4
+ * Version: 1.6.5
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -41,7 +41,7 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.6.4');
+define('WOOM_VERSION', '1.6.5');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -432,15 +432,24 @@ class WooCommerce_Order_Monitor {
         global $wpdb;
 
         try {
-            // Calculate time boundary
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-            $end_time = current_time('mysql'); // Upper bound for better query planning
-            
+            // strtotime returns a UTC unix timestamp; format it twice so each
+            // branch gets the timezone its column is stored in.
+            $now = time();
+            $start_ts = $now - ($minutes * 60);
+
             // Check if HPOS is available for better performance
             if ($this->is_hpos_enabled()) {
-                $result = $this->query_hpos_orders($start_time, $end_time);
+                // date_created_gmt is UTC.
+                $result = $this->query_hpos_orders(
+                    gmdate('Y-m-d H:i:s', $start_ts),
+                    gmdate('Y-m-d H:i:s', $now)
+                );
             } else {
-                $result = $this->query_legacy_orders($start_time, $end_time);
+                // post_date is site-local.
+                $result = $this->query_legacy_orders(
+                    date('Y-m-d H:i:s', $start_ts),
+                    current_time('mysql')
+                );
             }
             
             // Validate result
@@ -481,11 +490,15 @@ class WooCommerce_Order_Monitor {
      */
     private function query_hpos_orders($start_time, $end_time) {
         global $wpdb;
-        
+
+        // Note: type='shop_order' excludes shop_order_refund rows, which share
+        // the wc-completed status and would otherwise inflate the count.
+        // date_created_gmt is UTC, so the bounds must be GMT too.
         $query = $wpdb->prepare("
             SELECT COUNT(*) as order_count
             FROM {$wpdb->prefix}wc_orders
-            WHERE status IN ('wc-completed', 'wc-processing')
+            WHERE type = 'shop_order'
+            AND status IN ('wc-completed', 'wc-processing')
             AND date_created_gmt >= %s
             AND date_created_gmt <= %s
         ", $start_time, $end_time);
@@ -2597,26 +2610,36 @@ class WOOM_Optimized_Query {
         global $wpdb;
 
         try {
-            // Use indexed columns for better performance
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+            $start_ts = time() - ($minutes * 60);
 
-            // Query using order stats table if available (HPOS)
-            if (class_exists('Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController')) {
+            // Branch on the *active* HPOS backend, not just class_exists — on a
+            // store where HPOS is available but posts are still authoritative,
+            // wc_orders may be empty or stale (compat-mode off + recent writes
+            // landed only in wp_posts).
+            $hpos_active = class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController')
+                && function_exists('wc_get_container')
+                && wc_get_container()
+                    ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+                    ->custom_orders_table_usage_is_enabled();
+
+            if ($hpos_active) {
+                // date_created_gmt is UTC; type filter excludes shop_order_refund.
                 $query = $wpdb->prepare("
                     SELECT COUNT(*) as order_count
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN ('wc-completed', 'wc-processing')
+                    WHERE type = 'shop_order'
+                    AND status IN ('wc-completed', 'wc-processing')
                     AND date_created_gmt >= %s
-                ", $start_time);
+                ", gmdate('Y-m-d H:i:s', $start_ts));
             } else {
-                // Fallback to posts table (simplified query to avoid JOIN issues)
+                // post_date_gmt is UTC.
                 $query = $wpdb->prepare("
                     SELECT COUNT(*) as order_count
                     FROM {$wpdb->posts} p
                     WHERE p.post_type = 'shop_order'
                     AND p.post_status IN ('wc-completed', 'wc-processing')
                     AND p.post_date_gmt >= %s
-                ", $start_time);
+                ", gmdate('Y-m-d H:i:s', $start_ts));
             }
 
             $count = intval($wpdb->get_var($query));
@@ -2645,13 +2668,14 @@ class WOOM_Optimized_Query {
         global $wpdb;
 
         try {
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+            $start_ts = time() - ($minutes * 60);
 
             if (class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController')
                 && function_exists('wc_get_container')
                 && wc_get_container()
                     ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
                     ->custom_orders_table_usage_is_enabled()) {
+                // type='shop_order' excludes shop_order_refund; date_created_gmt is UTC.
                 $query = $wpdb->prepare("
                     SELECT
                         COUNT(*) as total_orders,
@@ -2659,9 +2683,10 @@ class WOOM_Optimized_Query {
                         SUM(CASE WHEN status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
                         MAX(date_created_gmt) as last_order_time
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN ('wc-completed', 'wc-processing')
+                    WHERE type = 'shop_order'
+                    AND status IN ('wc-completed', 'wc-processing')
                     AND date_created_gmt >= %s
-                ", $start_time);
+                ", gmdate('Y-m-d H:i:s', $start_ts));
             } else {
                 $query = $wpdb->prepare("
                     SELECT
@@ -2673,7 +2698,7 @@ class WOOM_Optimized_Query {
                     WHERE post_type = 'shop_order'
                     AND post_status IN ('wc-completed', 'wc-processing')
                     AND post_date >= %s
-                ", $start_time);
+                ", date('Y-m-d H:i:s', $start_ts));
             }
 
             $result = $wpdb->get_row($query, ARRAY_A);

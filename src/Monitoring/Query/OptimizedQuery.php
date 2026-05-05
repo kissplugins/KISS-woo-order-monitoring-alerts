@@ -125,28 +125,28 @@ class OptimizedQuery implements QueryInterface {
      */
     private function executeOptimizedCountQuery(int $minutes) {
         global $wpdb;
-        
+
         try {
-            // Calculate start time
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-            
+            $start_ts = time() - ($minutes * 60);
+
             if ($this->isHposEnabled()) {
-                // Use HPOS table for better performance
+                // type='shop_order' excludes shop_order_refund; date_created_gmt is UTC.
                 $query = $wpdb->prepare("
                     SELECT COUNT(*) as order_count
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN (" . $this->getStatusPlaceholders() . ")
+                    WHERE type = 'shop_order'
+                    AND status IN (" . $this->getStatusPlaceholders() . ")
                     AND date_created_gmt >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [gmdate('Y-m-d H:i:s', $start_ts)]));
             } else {
-                // Use optimized posts table query
+                // post_date_gmt is UTC.
                 $query = $wpdb->prepare("
                     SELECT COUNT(*) as order_count
                     FROM {$wpdb->posts} p
                     WHERE p.post_type = 'shop_order'
                     AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
                     AND p.post_date_gmt >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [gmdate('Y-m-d H:i:s', $start_ts)]));
             }
             
             // Execute query
@@ -174,28 +174,28 @@ class OptimizedQuery implements QueryInterface {
      */
     private function executeOptimizedStatsQuery(int $minutes): array {
         global $wpdb;
-        
+
         try {
-            // Calculate start time
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-            
+            $start_ts = time() - ($minutes * 60);
+
             if ($this->isHposEnabled()) {
-                // Use HPOS table for better performance
+                // type='shop_order' excludes shop_order_refund; date_created_gmt is UTC.
                 $query = $wpdb->prepare("
-                    SELECT 
+                    SELECT
                         COUNT(*) as total_orders,
                         COUNT(CASE WHEN status = 'wc-completed' THEN 1 END) as completed_orders,
                         COUNT(CASE WHEN status = 'wc-processing' THEN 1 END) as processing_orders,
                         MIN(date_created_gmt) as first_order_time,
                         MAX(date_created_gmt) as last_order_time
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN (" . $this->getStatusPlaceholders() . ")
+                    WHERE type = 'shop_order'
+                    AND status IN (" . $this->getStatusPlaceholders() . ")
                     AND date_created_gmt >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [gmdate('Y-m-d H:i:s', $start_ts)]));
             } else {
-                // Use optimized posts table query
+                // post_date_gmt is UTC.
                 $query = $wpdb->prepare("
-                    SELECT 
+                    SELECT
                         COUNT(*) as total_orders,
                         COUNT(CASE WHEN p.post_status = 'wc-completed' THEN 1 END) as completed_orders,
                         COUNT(CASE WHEN p.post_status = 'wc-processing' THEN 1 END) as processing_orders,
@@ -205,7 +205,7 @@ class OptimizedQuery implements QueryInterface {
                     WHERE p.post_type = 'shop_order'
                     AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
                     AND p.post_date_gmt >= %s
-                ", array_merge($this->valid_statuses, [$start_time]));
+                ", array_merge($this->valid_statuses, [gmdate('Y-m-d H:i:s', $start_ts)]));
             }
             
             // Execute query

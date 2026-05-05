@@ -1,5 +1,17 @@
 ## Changelog
 
+### Version 1.6.5
+May 5, 2026
+
+**🐛 HPOS query correctness — follow-up to issue #27 review:**
+Three latent bugs in the HPOS query branches (some pre-existing, some propagated by Pass 2). Fixed across all eight HPOS query sites in one pass.
+
+- **Missing `type = 'shop_order'` filter (high).** The HPOS `wc_orders` table is the union of `shop_order` and `shop_order_refund` rows, both using the same `wc-completed` status. Without the type filter, refunds inside the 15-minute window inflated the count and could mask a real order shortfall — exactly the failure mode this plugin exists to detect. Added `AND type = 'shop_order'` to every direct `wc_orders` count/stats/self-test query: `WooCommerce_Order_Monitor::query_hpos_orders`, `WOOM_Optimized_Query::get_cached_order_count`, `WOOM_Optimized_Query::get_order_stats`, `OrderQuery::executeCountQuery`/`executeStatsQuery`, `OptimizedQuery::executeOptimizedCountQuery`/`executeOptimizedStatsQuery`, and `SelfTests::testDatabaseQuery`.
+- **`class_exists`-only HPOS check in legacy `WOOM_Optimized_Query::get_cached_order_count` (medium).** Branched to `wc_orders` whenever the controller class was loadable, even on a store where HPOS was available but posts were authoritative — reading from a potentially stale or empty `wc_orders` table. Now uses the same active-backend check (`custom_orders_table_usage_is_enabled()`) as the rest of the plugin.
+- **`date()` vs `gmdate()` for `date_created_gmt` (medium/low).** `strtotime()` returns a UTC unix timestamp, but `date()` formats it in the server's local timezone. Comparing that to `date_created_gmt` was correct only when the server ran in UTC. The failure mode is asymmetric: on TZ-behind-UTC servers (Pacific, Eastern, most US hosts) the bound moves into the past by the offset, the WHERE matches hours of orders instead of 15 minutes, and counts silently inflate (alerts get suppressed). On TZ-ahead-of-UTC servers (Tokyo, Sydney) the bound moves into the future and counts fall to 0 (alerts fire spuriously or the cron logs zero). Replaced with `gmdate('Y-m-d H:i:s', $start_ts)` for every HPOS branch. Posts-table branches keep `date()` because `post_date` is site-local; branches that read `post_date_gmt` use `gmdate()` too. The self-test already used `UTC_TIMESTAMP()` server-side and was unaffected.
+
+**Verification:** On a Valet test site with HPOS authoritative + compat mode off, created 10 fresh orders plus a refund (`shop_order_refund`, status `wc-completed`) inside the 15-minute window. Under default UTC server timezone, all five HPOS code paths returned 10 (refund correctly excluded by `type='shop_order'`). Forcing PHP timezone to `America/Los_Angeles` and re-running: post-fix paths still returned 10; a deliberate pre-fix simulation (raw `date()` bound, no type filter) returned 31 — confirming both bugs and that the fix closes both.
+
 ### Version 1.6.4
 May 5, 2026
 

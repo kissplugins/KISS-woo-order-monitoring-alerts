@@ -225,7 +225,7 @@ class OrderMonitor {
                 'period_type' => $threshold_details['period_type'],
                 'severity' => $threshold_details['severity'],
                 'threshold_percentage' => $threshold_details['threshold_percentage'],
-                'admin_url' => admin_url('edit.php?post_type=shop_order')
+                'admin_url' => woom_orders_admin_url()
             ];
             
             $body = $this->buildAlertEmailBody($email_data);
@@ -730,7 +730,7 @@ class OrderMonitor {
                 'failed_orders' => $failed_count,
                 'success_orders' => count($history) - $failed_count,
                 'window_size' => $this->settings->get('rolling_window_size', 10),
-                'admin_url' => admin_url('edit.php?post_type=shop_order&post_status=wc-failed')
+                'admin_url' => woom_orders_admin_url(['post_status' => 'wc-failed'])
             ];
 
             $body = $this->buildRollingAverageAlertEmail($email_data);

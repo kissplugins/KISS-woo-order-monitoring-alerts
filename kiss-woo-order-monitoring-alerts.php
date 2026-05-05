@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.6.2
+ * Version: 1.6.3
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -41,7 +41,7 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.6.2');
+define('WOOM_VERSION', '1.6.3');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -73,6 +73,42 @@ $update_checker = PucFactory::buildUpdateChecker(
 );
 // Optional: Set the branch that contains the stable release.
 $update_checker->setBranch( 'main' );
+
+if (!function_exists('woom_orders_admin_url')) {
+    /**
+     * Build an admin URL for the orders list, picking the right route for the
+     * active orders backend.
+     *
+     * On HPOS-only stores, the legacy `edit.php?post_type=shop_order` route
+     * 404s (or redirects); the canonical orders screen is
+     * `admin.php?page=wc-orders`. Mapping legacy `post_status` to the HPOS
+     * `status` query var keeps "show me failed orders" deep-links working
+     * when notification emails are opened on a pure-HPOS store.
+     *
+     * @param array $args Optional query args (legacy keys accepted: post_status).
+     * @return string Absolute admin URL.
+     */
+    function woom_orders_admin_url(array $args = []): string {
+        $hpos_active = class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController')
+            && function_exists('wc_get_container')
+            && wc_get_container()
+                ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+                ->custom_orders_table_usage_is_enabled();
+
+        if ($hpos_active) {
+            $query = ['page' => 'wc-orders'];
+            if (!empty($args['post_status'])) {
+                $query['status'] = $args['post_status'];
+                unset($args['post_status']);
+            }
+            $query = array_merge($query, $args);
+            return admin_url('admin.php?' . http_build_query($query));
+        }
+
+        $query = ['post_type' => 'shop_order'] + $args;
+        return admin_url('edit.php?' . http_build_query($query));
+    }
+}
 
 // Try to load PSR-4 bootstrap if available
 $bootstrap_file = WOOM_PLUGIN_DIR . 'bootstrap.php';
@@ -500,7 +536,7 @@ class WooCommerce_Order_Monitor {
                 'threshold' => $threshold,
                 'order_count' => $order_count,
                 'period_type' => $is_peak ? __('Peak Hours', 'woo-order-monitor') : __('Off-Peak Hours', 'woo-order-monitor'),
-                'admin_url' => admin_url('edit.php?post_type=shop_order')
+                'admin_url' => woom_orders_admin_url()
             ]);
 
             // Validate email body
@@ -705,7 +741,7 @@ class WooCommerce_Order_Monitor {
                 'threshold' => $threshold,
                 'order_count' => $order_count,
                 'period_type' => $is_peak ? __('Peak Hours', 'woo-order-monitor') : __('Off-Peak Hours', 'woo-order-monitor'),
-                'admin_url' => admin_url('edit.php?post_type=shop_order'),
+                'admin_url' => woom_orders_admin_url(),
                 'alert_type' => $alert_type,
                 'daily_count' => $this->settings['daily_alert_count'],
                 'max_daily' => $this->settings['max_daily_alerts'],
@@ -2569,17 +2605,34 @@ class WOOM_Optimized_Query {
         try {
             $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
 
-            $query = $wpdb->prepare("
-                SELECT
-                    COUNT(*) as total_orders,
-                    SUM(CASE WHEN post_status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
-                    SUM(CASE WHEN post_status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
-                    MAX(post_date) as last_order_time
-                FROM {$wpdb->posts}
-                WHERE post_type = 'shop_order'
-                AND post_status IN ('wc-completed', 'wc-processing')
-                AND post_date >= %s
-            ", $start_time);
+            if (class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController')
+                && function_exists('wc_get_container')
+                && wc_get_container()
+                    ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+                    ->custom_orders_table_usage_is_enabled()) {
+                $query = $wpdb->prepare("
+                    SELECT
+                        COUNT(*) as total_orders,
+                        SUM(CASE WHEN status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
+                        SUM(CASE WHEN status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
+                        MAX(date_created_gmt) as last_order_time
+                    FROM {$wpdb->prefix}wc_orders
+                    WHERE status IN ('wc-completed', 'wc-processing')
+                    AND date_created_gmt >= %s
+                ", $start_time);
+            } else {
+                $query = $wpdb->prepare("
+                    SELECT
+                        COUNT(*) as total_orders,
+                        SUM(CASE WHEN post_status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
+                        SUM(CASE WHEN post_status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
+                        MAX(post_date) as last_order_time
+                    FROM {$wpdb->posts}
+                    WHERE post_type = 'shop_order'
+                    AND post_status IN ('wc-completed', 'wc-processing')
+                    AND post_date >= %s
+                ", $start_time);
+            }
 
             $result = $wpdb->get_row($query, ARRAY_A);
 

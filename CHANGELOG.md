@@ -1,5 +1,16 @@
 ## Changelog
 
+### Version 1.6.3
+May 5, 2026
+
+**✨ Improvements (HPOS Pass 2 — issue #27):**
+- **`OrderQuery` is now HPOS-aware.** Both `executeCountQuery()` and `executeStatsQuery()` branch on the active orders backend and read from `wc_orders` directly when HPOS is enabled (`src/Monitoring/Query/OrderQuery.php`). `getPerformanceInfo()` now reports `supports_hpos => true`.
+- **`WOOM_Optimized_Query::get_order_stats()` now branches on HPOS.** Previously stats always read from `{$wpdb->posts}`, which silently returned 0 on pure-HPOS stores.
+- **Self-test now reads from the active backend.** `SelfTests::testDatabaseQuery()` checks for and counts against `wc_orders` when HPOS is enabled, `posts` otherwise — the diagnostic now reflects what the rest of the plugin actually queries.
+- **Notification email admin URLs are HPOS-aware.** New `woom_orders_admin_url()` helper returns `admin.php?page=wc-orders` when HPOS is the active backend (legacy `edit.php?post_type=shop_order` 404s on pure-HPOS stores). The legacy `post_status` filter is mapped to the HPOS `status` query var so deep-links into "failed orders" keep working.
+
+**Compatibility:** Stores can now safely disable WP-posts storage compatibility mode and run pure-HPOS without losing order counts, stats, self-test accuracy, or working email deep-links.
+
 ### Version 1.6.2
 May 4, 2026
 

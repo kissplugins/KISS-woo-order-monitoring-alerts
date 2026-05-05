@@ -35,10 +35,17 @@ class OrderQuery implements QueryInterface {
     
     /**
      * Valid order statuses to count
-     * 
+     *
      * @var array
      */
     private $valid_statuses = ['wc-completed', 'wc-processing'];
+
+    /**
+     * Cached HPOS detection result. Null = not yet detected.
+     *
+     * @var bool|null
+     */
+    private $hpos_enabled = null;
     
     /**
      * Get order count for a specific time period
@@ -108,20 +115,29 @@ class OrderQuery implements QueryInterface {
      */
     private function executeCountQuery(int $minutes) {
         global $wpdb;
-        
+
         try {
             // Calculate start time
             $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-            
-            // Prepare query
-            $query = $wpdb->prepare("
-                SELECT COUNT(DISTINCT p.ID) as order_count
-                FROM {$wpdb->posts} p
-                WHERE p.post_type = 'shop_order'
-                AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
-                AND p.post_date >= %s
-            ", array_merge($this->valid_statuses, [$start_time]));
-            
+
+            if ($this->isHposEnabled()) {
+                // Read directly from the HPOS orders table when active.
+                $query = $wpdb->prepare("
+                    SELECT COUNT(*) as order_count
+                    FROM {$wpdb->prefix}wc_orders
+                    WHERE status IN (" . $this->getStatusPlaceholders() . ")
+                    AND date_created_gmt >= %s
+                ", array_merge($this->valid_statuses, [$start_time]));
+            } else {
+                $query = $wpdb->prepare("
+                    SELECT COUNT(DISTINCT p.ID) as order_count
+                    FROM {$wpdb->posts} p
+                    WHERE p.post_type = 'shop_order'
+                    AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
+                    AND p.post_date >= %s
+                ", array_merge($this->valid_statuses, [$start_time]));
+            }
+
             // Execute query
             $result = $wpdb->get_var($query);
             
@@ -147,25 +163,38 @@ class OrderQuery implements QueryInterface {
      */
     private function executeStatsQuery(int $minutes): array {
         global $wpdb;
-        
+
         try {
             // Calculate start time
             $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-            
-            // Prepare query for detailed stats
-            $query = $wpdb->prepare("
-                SELECT 
-                    COUNT(DISTINCT p.ID) as total_orders,
-                    COUNT(CASE WHEN p.post_status = 'wc-completed' THEN 1 END) as completed_orders,
-                    COUNT(CASE WHEN p.post_status = 'wc-processing' THEN 1 END) as processing_orders,
-                    MIN(p.post_date) as first_order_time,
-                    MAX(p.post_date) as last_order_time
-                FROM {$wpdb->posts} p
-                WHERE p.post_type = 'shop_order'
-                AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
-                AND p.post_date >= %s
-            ", array_merge($this->valid_statuses, [$start_time]));
-            
+
+            if ($this->isHposEnabled()) {
+                $query = $wpdb->prepare("
+                    SELECT
+                        COUNT(*) as total_orders,
+                        COUNT(CASE WHEN status = 'wc-completed' THEN 1 END) as completed_orders,
+                        COUNT(CASE WHEN status = 'wc-processing' THEN 1 END) as processing_orders,
+                        MIN(date_created_gmt) as first_order_time,
+                        MAX(date_created_gmt) as last_order_time
+                    FROM {$wpdb->prefix}wc_orders
+                    WHERE status IN (" . $this->getStatusPlaceholders() . ")
+                    AND date_created_gmt >= %s
+                ", array_merge($this->valid_statuses, [$start_time]));
+            } else {
+                $query = $wpdb->prepare("
+                    SELECT
+                        COUNT(DISTINCT p.ID) as total_orders,
+                        COUNT(CASE WHEN p.post_status = 'wc-completed' THEN 1 END) as completed_orders,
+                        COUNT(CASE WHEN p.post_status = 'wc-processing' THEN 1 END) as processing_orders,
+                        MIN(p.post_date) as first_order_time,
+                        MAX(p.post_date) as last_order_time
+                    FROM {$wpdb->posts} p
+                    WHERE p.post_type = 'shop_order'
+                    AND p.post_status IN (" . $this->getStatusPlaceholders() . ")
+                    AND p.post_date >= %s
+                ", array_merge($this->valid_statuses, [$start_time]));
+            }
+
             // Execute query
             $result = $wpdb->get_row($query, ARRAY_A);
             
@@ -220,16 +249,41 @@ class OrderQuery implements QueryInterface {
      */
     public function isAvailable(): bool {
         global $wpdb;
-        
+
         // Check if database is available
         if (!$wpdb) {
             return false;
         }
-        
+
+        if ($this->isHposEnabled()) {
+            $table = $wpdb->prefix . 'wc_orders';
+            return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+        }
+
         // Check if posts table exists
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->posts}'") === $wpdb->posts;
-        
+
         return $table_exists;
+    }
+
+    /**
+     * Detect whether HPOS (custom order tables) is the active orders backend.
+     *
+     * Mirrors OptimizedQuery::isHposEnabled() so the two query implementations
+     * agree on which backend to read from. Result is cached on the instance.
+     *
+     * @return bool True if HPOS is enabled and active.
+     */
+    private function isHposEnabled(): bool {
+        if ($this->hpos_enabled === null) {
+            $this->hpos_enabled = class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController') &&
+                                  function_exists('wc_get_container') &&
+                                  wc_get_container()
+                                      ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+                                      ->custom_orders_table_usage_is_enabled();
+        }
+
+        return $this->hpos_enabled;
     }
     
     /**
@@ -253,7 +307,8 @@ class OrderQuery implements QueryInterface {
             'estimated_speed' => 'medium',
             'memory_usage' => 'low',
             'database_load' => 'medium',
-            'supports_hpos' => false,
+            'supports_hpos' => true,
+            'hpos_enabled' => $this->isHposEnabled(),
             'recommended_for' => 'Standard WooCommerce installations'
         ];
     }

@@ -479,8 +479,18 @@ class SelfTests {
                 ];
             }
 
-            // Test WooCommerce tables exist
-            $orders_table = $wpdb->prefix . 'posts';
+            // Detect which orders backend is active so the test reads from
+            // the same table the rest of the plugin's queries do.
+            $hpos_available = class_exists('Automattic\\WooCommerce\\Utilities\\OrderUtil')
+                ? \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled()
+                : false;
+
+            if ($hpos_available) {
+                $orders_table = $wpdb->prefix . 'wc_orders';
+            } else {
+                $orders_table = $wpdb->prefix . 'posts';
+            }
+
             $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $orders_table));
 
             if (!$table_exists) {
@@ -491,14 +501,23 @@ class SelfTests {
                 ];
             }
 
-            // Test order count query
-            $order_count = $wpdb->get_var("
-                SELECT COUNT(*)
-                FROM {$wpdb->posts}
-                WHERE post_type = 'shop_order'
-                AND post_status IN ('wc-processing', 'wc-completed', 'wc-on-hold')
-                AND post_date >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)
-            ");
+            // Test order count query against the active backend
+            if ($hpos_available) {
+                $order_count = $wpdb->get_var("
+                    SELECT COUNT(*)
+                    FROM {$wpdb->prefix}wc_orders
+                    WHERE status IN ('wc-processing', 'wc-completed', 'wc-on-hold')
+                    AND date_created_gmt >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)
+                ");
+            } else {
+                $order_count = $wpdb->get_var("
+                    SELECT COUNT(*)
+                    FROM {$wpdb->posts}
+                    WHERE post_type = 'shop_order'
+                    AND post_status IN ('wc-processing', 'wc-completed', 'wc-on-hold')
+                    AND post_date >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+                ");
+            }
 
             if ($order_count === null) {
                 return [
@@ -508,12 +527,7 @@ class SelfTests {
                 ];
             }
 
-            // Test HPOS support if available
-            $hpos_available = false;
-            $hpos_details = '';
-
-            if (class_exists('Automattic\WooCommerce\Utilities\OrderUtil')) {
-                $hpos_available = \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
+            if (class_exists('Automattic\\WooCommerce\\Utilities\\OrderUtil')) {
                 $hpos_details = $hpos_available ? 'HPOS enabled and active' : 'HPOS available but not enabled';
             } else {
                 $hpos_details = 'HPOS not available (WooCommerce < 8.0)';

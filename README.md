@@ -38,6 +38,7 @@ A lightweight WordPress plugin that monitors WooCommerce order volume and sends 
 - **Peak Threshold** - Minimum orders expected per 15 minutes during peak hours
 - **Off-Peak Threshold** - Minimum orders expected per 15 minutes during off-peak hours
 - **Notification Emails** - Comma-separated list of email addresses for alerts
+- **Email Subject Prefix** - Prepended to every alert/test/system email subject line so multi-site admins can tell which store fired an alert. Defaults to `[your-site-host]`; set to empty to disable.
 
 ### Default Settings
 
@@ -48,6 +49,7 @@ The plugin comes pre-configured with sensible defaults:
 - **Peak Threshold**: 10 orders per 15 minutes
 - **Off-Peak Threshold**: 2 orders per 15 minutes
 - **Notification Emails**: Your WordPress admin email
+- **Email Subject Prefix**: `[<your-site-host>]` (e.g. `[bloomz-prod-08-15.local]`)
 
 ### Recommended Adjustments
 

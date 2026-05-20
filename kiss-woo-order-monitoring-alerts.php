@@ -3,7 +3,7 @@
  * Plugin Name: KISS WooCommerce Order Monitor
  * Plugin URI: https://github.com/kissplugins/KISS-woo-order-monitoring-alerts
  * Description: Monitors WooCommerce order volume and sends alerts when orders fall below configured thresholds
- * Version: 1.6.0
+ * Version: 1.6.5
  * Author: KISS Plugins
  * License: GPL v2 or later
  * Requires at least: 5.8
@@ -41,10 +41,26 @@ if (!defined('ABSPATH')) {
  */
 
 // Define plugin constants
-define('WOOM_VERSION', '1.6.0');
+define('WOOM_VERSION', '1.6.5');
 define('WOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WOOM_PLUGIN_BASENAME', plugin_basename(__FILE__));
+
+// Declare WooCommerce HPOS (custom order tables) compatibility.
+// Must run on `before_woocommerce_init` so it fires before WC decides whether
+// HPOS-only mode is safe to enable. Query paths in this plugin already detect
+// HPOS at runtime and read from the `wc_orders` table when it is active; the
+// declaration tells WooCommerce we are safe to run with the legacy posts
+// storage disabled.
+add_action('before_woocommerce_init', function () {
+    if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility(
+            'custom_order_tables',
+            __FILE__,
+            true
+        );
+    }
+});
 
 // Include the Plugin Update Checker
 require_once WOOM_PLUGIN_DIR . 'lib/plugin-update-checker/plugin-update-checker.php';
@@ -57,6 +73,80 @@ $update_checker = PucFactory::buildUpdateChecker(
 );
 // Optional: Set the branch that contains the stable release.
 $update_checker->setBranch( 'main' );
+
+if (!function_exists('woom_orders_admin_url')) {
+    /**
+     * Build an admin URL for the orders list, picking the right route for the
+     * active orders backend.
+     *
+     * On HPOS-only stores, the legacy `edit.php?post_type=shop_order` route
+     * 404s (or redirects); the canonical orders screen is
+     * `admin.php?page=wc-orders`. Mapping legacy `post_status` to the HPOS
+     * `status` query var keeps "show me failed orders" deep-links working
+     * when notification emails are opened on a pure-HPOS store.
+     *
+     * @param array $args Optional query args (legacy keys accepted: post_status).
+     * @return string Absolute admin URL.
+     */
+    function woom_orders_admin_url(array $args = []): string {
+        $hpos_active = class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController')
+            && function_exists('wc_get_container')
+            && wc_get_container()
+                ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+                ->custom_orders_table_usage_is_enabled();
+
+        if ($hpos_active) {
+            $query = ['page' => 'wc-orders'];
+            if (!empty($args['post_status'])) {
+                $query['status'] = $args['post_status'];
+                unset($args['post_status']);
+            }
+            $query = array_merge($query, $args);
+            return admin_url('admin.php?' . http_build_query($query));
+        }
+
+        $query = ['post_type' => 'shop_order'] + $args;
+        return admin_url('edit.php?' . http_build_query($query));
+    }
+}
+
+if (!function_exists('woom_email_subject')) {
+    /**
+     * Prepend the configured site identifier to an email subject line.
+     *
+     * Reads the `woom_subject_prefix` option, falling back to the
+     * dynamically resolved default in SettingsDefaults (which evaluates
+     * to "[<host>]"). An empty stored value disables the feature
+     * entirely. Use this at every wp_mail() call site so multi-site
+     * admins can tell which store an alert came from at a glance.
+     *
+     * @param string $subject The original subject line.
+     * @return string Subject with prefix prepended (or unchanged if disabled).
+     */
+    function woom_email_subject(string $subject): string {
+        // get_option returns the second arg verbatim only when the key is absent
+        // from wp_options. A stored empty string means the user explicitly
+        // disabled the prefix; we must not fall back to the default in that case.
+        $sentinel = '__woom_subject_prefix_unset__';
+        $prefix = get_option('woom_subject_prefix', $sentinel);
+
+        if ($prefix === $sentinel) {
+            if (class_exists('\\KissPlugins\\WooOrderMonitor\\Core\\SettingsDefaults')) {
+                $prefix = \KissPlugins\WooOrderMonitor\Core\SettingsDefaults::getDefault('subject_prefix', '');
+            } else {
+                $host = parse_url(home_url(), PHP_URL_HOST);
+                $prefix = is_string($host) && $host !== '' ? '[' . $host . ']' : '';
+            }
+        }
+
+        $prefix = trim((string) $prefix);
+        if ($prefix === '') {
+            return $subject;
+        }
+
+        return $prefix . ' ' . $subject;
+    }
+}
 
 // Try to load PSR-4 bootstrap if available
 $bootstrap_file = WOOM_PLUGIN_DIR . 'bootstrap.php';
@@ -342,15 +432,24 @@ class WooCommerce_Order_Monitor {
         global $wpdb;
 
         try {
-            // Calculate time boundary
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
-            $end_time = current_time('mysql'); // Upper bound for better query planning
-            
+            // strtotime returns a UTC unix timestamp; format it twice so each
+            // branch gets the timezone its column is stored in.
+            $now = time();
+            $start_ts = $now - ($minutes * 60);
+
             // Check if HPOS is available for better performance
             if ($this->is_hpos_enabled()) {
-                $result = $this->query_hpos_orders($start_time, $end_time);
+                // date_created_gmt is UTC.
+                $result = $this->query_hpos_orders(
+                    gmdate('Y-m-d H:i:s', $start_ts),
+                    gmdate('Y-m-d H:i:s', $now)
+                );
             } else {
-                $result = $this->query_legacy_orders($start_time, $end_time);
+                // post_date is site-local.
+                $result = $this->query_legacy_orders(
+                    date('Y-m-d H:i:s', $start_ts),
+                    current_time('mysql')
+                );
             }
             
             // Validate result
@@ -391,11 +490,15 @@ class WooCommerce_Order_Monitor {
      */
     private function query_hpos_orders($start_time, $end_time) {
         global $wpdb;
-        
+
+        // Note: type='shop_order' excludes shop_order_refund rows, which share
+        // the wc-completed status and would otherwise inflate the count.
+        // date_created_gmt is UTC, so the bounds must be GMT too.
         $query = $wpdb->prepare("
             SELECT COUNT(*) as order_count
             FROM {$wpdb->prefix}wc_orders
-            WHERE status IN ('wc-completed', 'wc-processing')
+            WHERE type = 'shop_order'
+            AND status IN ('wc-completed', 'wc-processing')
             AND date_created_gmt >= %s
             AND date_created_gmt <= %s
         ", $start_time, $end_time);
@@ -471,7 +574,7 @@ class WooCommerce_Order_Monitor {
                 return false;
             }
 
-            $subject = __('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor');
+            $subject = woom_email_subject(__('[Alert] WooCommerce Orders Below Threshold', 'woo-order-monitor'));
 
             // Calculate time period
             $end_time = current_time('H:i');
@@ -484,7 +587,7 @@ class WooCommerce_Order_Monitor {
                 'threshold' => $threshold,
                 'order_count' => $order_count,
                 'period_type' => $is_peak ? __('Peak Hours', 'woo-order-monitor') : __('Off-Peak Hours', 'woo-order-monitor'),
-                'admin_url' => admin_url('edit.php?post_type=shop_order')
+                'admin_url' => woom_orders_admin_url()
             ]);
 
             // Validate email body
@@ -689,7 +792,7 @@ class WooCommerce_Order_Monitor {
                 'threshold' => $threshold,
                 'order_count' => $order_count,
                 'period_type' => $is_peak ? __('Peak Hours', 'woo-order-monitor') : __('Off-Peak Hours', 'woo-order-monitor'),
-                'admin_url' => admin_url('edit.php?post_type=shop_order'),
+                'admin_url' => woom_orders_admin_url(),
                 'alert_type' => $alert_type,
                 'daily_count' => $this->settings['daily_alert_count'],
                 'max_daily' => $this->settings['max_daily_alerts'],
@@ -753,15 +856,19 @@ class WooCommerce_Order_Monitor {
      */
     private function build_alert_subject($alert_type, $is_peak) {
         $period = $is_peak ? 'Peak' : 'Off-Peak';
-        
+
         switch ($alert_type) {
             case 'first_today':
-                return sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
+                $subject = sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
+                break;
             case 'escalated':
-                return sprintf(__('[URGENT] Repeated Order Volume Issues (%s)', 'woo-order-monitor'), $period);
+                $subject = sprintf(__('[URGENT] Repeated Order Volume Issues (%s)', 'woo-order-monitor'), $period);
+                break;
             default:
-                return sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
+                $subject = sprintf(__('[Alert] WooCommerce Orders Below Threshold (%s)', 'woo-order-monitor'), $period);
         }
+
+        return woom_email_subject($subject);
     }
     
     /**
@@ -949,7 +1056,7 @@ class WooCommerce_Order_Monitor {
     private function send_system_alert($subject, $message) {
         try {
             $to = $this->get_notification_emails();
-            $full_subject = '[SYSTEM] WooCommerce Order Monitor - ' . $subject;
+            $full_subject = woom_email_subject('[SYSTEM] WooCommerce Order Monitor - ' . $subject);
             
             $body = sprintf(
                 '<h3>System Alert: %s</h3><p><strong>Error:</strong> %s</p><p><strong>Time:</strong> %s</p><p><strong>Site:</strong> %s</p>',
@@ -1853,7 +1960,7 @@ class WooCommerce_Order_Monitor {
                 return;
             }
 
-            $subject = __('[Test] WooCommerce Order Monitor - Test Notification', 'woo-order-monitor');
+            $subject = woom_email_subject(__('[Test] WooCommerce Order Monitor - Test Notification', 'woo-order-monitor'));
 
             // Build test email body
             $body = $this->build_test_email_body();
@@ -2503,26 +2610,36 @@ class WOOM_Optimized_Query {
         global $wpdb;
 
         try {
-            // Use indexed columns for better performance
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+            $start_ts = time() - ($minutes * 60);
 
-            // Query using order stats table if available (HPOS)
-            if (class_exists('Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController')) {
+            // Branch on the *active* HPOS backend, not just class_exists — on a
+            // store where HPOS is available but posts are still authoritative,
+            // wc_orders may be empty or stale (compat-mode off + recent writes
+            // landed only in wp_posts).
+            $hpos_active = class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController')
+                && function_exists('wc_get_container')
+                && wc_get_container()
+                    ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+                    ->custom_orders_table_usage_is_enabled();
+
+            if ($hpos_active) {
+                // date_created_gmt is UTC; type filter excludes shop_order_refund.
                 $query = $wpdb->prepare("
                     SELECT COUNT(*) as order_count
                     FROM {$wpdb->prefix}wc_orders
-                    WHERE status IN ('wc-completed', 'wc-processing')
+                    WHERE type = 'shop_order'
+                    AND status IN ('wc-completed', 'wc-processing')
                     AND date_created_gmt >= %s
-                ", $start_time);
+                ", gmdate('Y-m-d H:i:s', $start_ts));
             } else {
-                // Fallback to posts table (simplified query to avoid JOIN issues)
+                // post_date_gmt is UTC.
                 $query = $wpdb->prepare("
                     SELECT COUNT(*) as order_count
                     FROM {$wpdb->posts} p
                     WHERE p.post_type = 'shop_order'
                     AND p.post_status IN ('wc-completed', 'wc-processing')
                     AND p.post_date_gmt >= %s
-                ", $start_time);
+                ", gmdate('Y-m-d H:i:s', $start_ts));
             }
 
             $count = intval($wpdb->get_var($query));
@@ -2551,19 +2668,38 @@ class WOOM_Optimized_Query {
         global $wpdb;
 
         try {
-            $start_time = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+            $start_ts = time() - ($minutes * 60);
 
-            $query = $wpdb->prepare("
-                SELECT
-                    COUNT(*) as total_orders,
-                    SUM(CASE WHEN post_status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
-                    SUM(CASE WHEN post_status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
-                    MAX(post_date) as last_order_time
-                FROM {$wpdb->posts}
-                WHERE post_type = 'shop_order'
-                AND post_status IN ('wc-completed', 'wc-processing')
-                AND post_date >= %s
-            ", $start_time);
+            if (class_exists('Automattic\\WooCommerce\\Internal\\DataStores\\Orders\\CustomOrdersTableController')
+                && function_exists('wc_get_container')
+                && wc_get_container()
+                    ->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+                    ->custom_orders_table_usage_is_enabled()) {
+                // type='shop_order' excludes shop_order_refund; date_created_gmt is UTC.
+                $query = $wpdb->prepare("
+                    SELECT
+                        COUNT(*) as total_orders,
+                        SUM(CASE WHEN status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
+                        SUM(CASE WHEN status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
+                        MAX(date_created_gmt) as last_order_time
+                    FROM {$wpdb->prefix}wc_orders
+                    WHERE type = 'shop_order'
+                    AND status IN ('wc-completed', 'wc-processing')
+                    AND date_created_gmt >= %s
+                ", gmdate('Y-m-d H:i:s', $start_ts));
+            } else {
+                $query = $wpdb->prepare("
+                    SELECT
+                        COUNT(*) as total_orders,
+                        SUM(CASE WHEN post_status = 'wc-completed' THEN 1 ELSE 0 END) as completed_orders,
+                        SUM(CASE WHEN post_status = 'wc-processing' THEN 1 ELSE 0 END) as processing_orders,
+                        MAX(post_date) as last_order_time
+                    FROM {$wpdb->posts}
+                    WHERE post_type = 'shop_order'
+                    AND post_status IN ('wc-completed', 'wc-processing')
+                    AND post_date >= %s
+                ", date('Y-m-d H:i:s', $start_ts));
+            }
 
             $result = $wpdb->get_row($query, ARRAY_A);
 
@@ -2643,7 +2779,7 @@ if (defined('WP_CLI') && WP_CLI) {
             $monitor = WooCommerce_Order_Monitor::get_instance();
             
             $to = $monitor->get_notification_emails();
-            $subject = '[Test] WooCommerce Order Monitor';
+            $subject = woom_email_subject('[Test] WooCommerce Order Monitor');
             $body = 'This is a test notification from WP-CLI.';
             
             if (wp_mail($to, $subject, $body)) {

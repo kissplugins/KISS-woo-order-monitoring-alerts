@@ -270,6 +270,15 @@ class SettingsPage {
                 'default' => $defaults['notification_emails'],
                 'css' => 'width: 400px; height: 100px;'
             ],
+            'subject_prefix' => [
+                'name' => __('Email Subject Prefix', 'woo-order-monitor'),
+                'type' => 'text',
+                'desc' => __('Prepended to every alert, test, and system email subject line so multi-site admins can tell which store fired an alert. Defaults to <code>[your-site-host]</code>; set to empty to disable.', 'woo-order-monitor'),
+                'id' => 'woom_subject_prefix',
+                'default' => $defaults['subject_prefix'],
+                'css' => 'width: 400px;',
+                'placeholder' => $defaults['subject_prefix']
+            ],
             'section_end' => [
                 'type' => 'sectionend',
                 'id' => 'woom_section_end'
